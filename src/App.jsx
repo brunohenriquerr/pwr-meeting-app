@@ -363,41 +363,22 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
     }
     setGeneratingAta(meeting.id);
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("/api/generate-ata", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: `Você é um consultor da PWR Gestão especialista em atas de reunião. Analise a transcrição e retorne APENAS um JSON válido, sem texto adicional, sem markdown, sem explicações. O JSON deve seguir exatamente esta estrutura:
-{
-  "participantes": [["1","Nome","Empresa"]],
-  "pautas": [["1","Descrição da pauta","15 min"]],
-  "decisoes": [["1","Descrição da decisão ou [DISCUSSÃO] descrição","Tomador ou ''"]],
-  "encaminhamentos": [["1","Verbo no infinitivo + descrição da ação","Responsável","Prazo ou A Definir"]]
-}
-Regras obrigatórias:
-- Todo encaminhamento começa com verbo no infinitivo (-ar, -er, -ir)
-- Cada encaminhamento tem apenas um responsável
-- Inclua TODAS as decisões, discussões e encaminhamentos da transcrição
-- Se empresa não mencionada, use contexto (PWR Gestão, cliente, etc)
-- Idioma: português brasileiro, tom formal e objetivo
-- Nunca use travessão (—), substitua por vírgula ou dois-pontos`,
-          messages: [{ role: "user", content: `Gere a ata desta reunião:\n\n${meeting.transcription.slice(0, 40000)}` }],
+          transcription: meeting.transcription,
+          title: meeting.title,
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.message || "Erro na API Claude");
-
-      const text = data.content?.[0]?.text || "";
-      const clean = text.replace(/```json|```/g, "").trim();
-      const ataJson = JSON.parse(clean);
+      if (!response.ok) throw new Error(data.error || "Erro na API");
 
       await saveAta(meeting.id, {
-        participantes: ataJson.participantes || [],
-        pautas: ataJson.pautas || [],
-        decisoes: ataJson.decisoes || [],
-        encaminhamentos: ataJson.encaminhamentos || [],
+        participantes:   data.participantes   || [],
+        pautas:          data.pautas          || [],
+        decisoes:        data.decisoes        || [],
+        encaminhamentos: data.encaminhamentos || [],
       });
       setSyncMsg(`✓ Ata de "${meeting.title}" gerada com sucesso! Veja na aba Atas.`);
     } catch (e) {
