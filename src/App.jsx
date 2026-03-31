@@ -198,6 +198,13 @@ function useAppData() {
     showToast("Encaminhamento excluído.");
   }
 
+  // ── UPDATE MEETING ────────────────────────────────────────────────────────
+  async function updateMeeting(id, updates) {
+    const { error } = await sb.from("meetings").update(updates).eq("id", id);
+    if (error) { showToast("Erro ao atualizar reunião: " + error.message, "error"); return; }
+    setMeetings(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+  }
+
   // ── ATAS ──────────────────────────────────────────────────────────────────
   async function saveAta(meetingId, ataData) {
     const existing = atas[meetingId];
@@ -215,16 +222,81 @@ function useAppData() {
     showToast("Ata salva com sucesso.");
   }
 
+  async function deleteAta(meetingId) {
+    const existing = atas[meetingId];
+    if (!existing) return;
+    const { error } = await sb.from("atas").delete().eq("id", existing.id);
+    if (error) { showToast("Erro ao apagar ata: " + error.message, "error"); return; }
+    setAtas(prev => { const n = { ...prev }; delete n[meetingId]; return n; });
+    await sb.from("meetings").update({ status: "transcribed" }).eq("id", meetingId);
+    setMeetings(prev => prev.map(m => m.id === meetingId ? { ...m, status: "transcribed" } : m));
+    showToast("Ata apagada.");
+  }
+
   return {
     meetings, actions, atas, loading, toast,
-    loadAll, addMeeting, deleteMeeting,
-    addAction, updateAction, deleteAction, saveAta,
+    loadAll, addMeeting, deleteMeeting, updateMeeting,
+    addAction, updateAction, deleteAction, saveAta, deleteAta,
     showToast,
   };
 }
 
+// ─── MODAL CLASSIFICAR PROJETO ───────────────────────────────────────────────
+function ClassifyProjectModal({ meeting, allProjects, onSave, onClose }) {
+  const [selected, setSelected] = useState(meeting.project || "Sem projeto");
+  const [newName, setNewName]   = useState("");
+  const [creating, setCreating] = useState(false);
+
+  function handleSave() {
+    const proj = creating && newName.trim() ? newName.trim() : selected;
+    onSave(meeting.id, proj);
+    onClose();
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:999,
+      display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"#fff", borderRadius:14, padding:28, maxWidth:380, width:"90%",
+        boxShadow:"0 20px 48px rgba(0,0,0,.25)" }}>
+        <div style={{ fontSize:15, fontWeight:800, color:"#1e293b", marginBottom:4 }}>Classificar Projeto</div>
+        <div style={{ fontSize:12, color:"#64748b", marginBottom:18 }}>{meeting.title}</div>
+
+        <div style={{ fontSize:11, fontWeight:700, color:"#475569", marginBottom:8, textTransform:"uppercase" }}>Selecionar projeto existente</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:16, maxHeight:200, overflowY:"auto" }}>
+          {allProjects.map(p => (
+            <button key={p} onClick={() => { setSelected(p); setCreating(false); }}
+              style={{ padding:"8px 12px", borderRadius:8, border:`2px solid ${selected===p && !creating?"#1e3a8a":"#e2e8f0"}`,
+                background:selected===p && !creating?"#eff6ff":"#fff",
+                color:selected===p && !creating?"#1e3a8a":"#334155",
+                fontSize:12, fontWeight:selected===p && !creating?700:400, cursor:"pointer", textAlign:"left" }}>
+              {p}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ borderTop:"1px solid #f1f5f9", paddingTop:14, marginBottom:16 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"#475569", marginBottom:8, textTransform:"uppercase" }}>Ou criar novo projeto</div>
+          <div style={{ display:"flex", gap:6 }}>
+            <input value={newName} onChange={e => { setNewName(e.target.value); setCreating(true); }}
+              placeholder="Nome do novo projeto..."
+              style={{ flex:1, padding:"7px 10px", borderRadius:8, border:`2px solid ${creating && newName?"#1e3a8a":"#e2e8f0"}`,
+                fontSize:12, outline:"none" }} />
+          </div>
+        </div>
+
+        <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+          <button onClick={onClose} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #e2e8f0",
+            background:"#fff", fontSize:12, cursor:"pointer", color:"#475569" }}>Cancelar</button>
+          <button onClick={handleSave} style={{ padding:"8px 16px", borderRadius:8, border:"none",
+            background:"#1e3a8a", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── ABA 1: TRANSCRIÇÕES ─────────────────────────────────────────────────────
-function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, loadAll }) {
+function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting, saveAta, atas, loadAll }) {
   const [search, setSearch]           = useState("");
   const [filterProject, setFP]        = useState("Todos");
   const [filterMonth, setFM]          = useState("Todos");
@@ -232,9 +304,12 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, loadAll }) {
   const [syncing, setSyncing]         = useState(false);
   const [syncMsg, setSyncMsg]         = useState(null);
   const [confirmDel, setConfirmDel]   = useState(null);
+  const [classifyMeeting, setClassify] = useState(null);
+  const [generatingAta, setGeneratingAta] = useState(null); // meeting id
   const fileRef = useRef();
 
-  const projects = ["Todos", ...new Set(meetings.map(m => m.project))];
+  const allProjects = [...new Set(meetings.map(m => m.project).filter(Boolean))].sort();
+  const projects = ["Todos", ...allProjects];
   const months   = ["Todos", ...new Set(meetings.map(m => m.month).filter(Boolean))];
 
   const filtered = meetings.filter(m => {
@@ -280,6 +355,59 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, loadAll }) {
     e.target.value = "";
   }
 
+  async function handleGerarAta(meeting) {
+    if (!meeting.transcription || meeting.transcription.trim().length < 50) {
+      setSyncMsg("⚠ Transcrição muito curta para gerar ata.");
+      setTimeout(() => setSyncMsg(null), 4000);
+      return;
+    }
+    setGeneratingAta(meeting.id);
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: `Você é um consultor da PWR Gestão especialista em atas de reunião. Analise a transcrição e retorne APENAS um JSON válido, sem texto adicional, sem markdown, sem explicações. O JSON deve seguir exatamente esta estrutura:
+{
+  "participantes": [["1","Nome","Empresa"]],
+  "pautas": [["1","Descrição da pauta","15 min"]],
+  "decisoes": [["1","Descrição da decisão ou [DISCUSSÃO] descrição","Tomador ou ''"]],
+  "encaminhamentos": [["1","Verbo no infinitivo + descrição da ação","Responsável","Prazo ou A Definir"]]
+}
+Regras obrigatórias:
+- Todo encaminhamento começa com verbo no infinitivo (-ar, -er, -ir)
+- Cada encaminhamento tem apenas um responsável
+- Inclua TODAS as decisões, discussões e encaminhamentos da transcrição
+- Se empresa não mencionada, use contexto (PWR Gestão, cliente, etc)
+- Idioma: português brasileiro, tom formal e objetivo
+- Nunca use travessão (—), substitua por vírgula ou dois-pontos`,
+          messages: [{ role: "user", content: `Gere a ata desta reunião:\n\n${meeting.transcription.slice(0, 40000)}` }],
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || "Erro na API Claude");
+
+      const text = data.content?.[0]?.text || "";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const ataJson = JSON.parse(clean);
+
+      await saveAta(meeting.id, {
+        participantes: ataJson.participantes || [],
+        pautas: ataJson.pautas || [],
+        decisoes: ataJson.decisoes || [],
+        encaminhamentos: ataJson.encaminhamentos || [],
+      });
+      setSyncMsg(`✓ Ata de "${meeting.title}" gerada com sucesso! Veja na aba Atas.`);
+    } catch (e) {
+      setSyncMsg(`⚠ Erro ao gerar ata: ${e.message}`);
+    } finally {
+      setGeneratingAta(null);
+      setTimeout(() => setSyncMsg(null), 6000);
+    }
+  }
+
   return (
     <div>
       <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap", alignItems:"center" }}>
@@ -295,7 +423,7 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, loadAll }) {
           📎 Importar PDF
         </button>
         <input ref={fileRef} type="file" accept=".pdf" style={{ display:"none" }} onChange={handlePDF} />
-        {syncMsg && <span style={{ fontSize:12, color:"#10b981", fontWeight:600 }}>{syncMsg}</span>}
+        {syncMsg && <span style={{ fontSize:12, color: syncMsg.startsWith("⚠") ? "#ef4444" : "#10b981", fontWeight:600 }}>{syncMsg}</span>}
       </div>
 
       <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
@@ -318,14 +446,15 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, loadAll }) {
       <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
         {filtered.map(m => {
           const expanded = expandedId === m.id;
-          const stColor = m.status === "ata_generated" ? "#10b981" : "#6366f1";
-          const stLabel = m.status === "ata_generated" ? "Ata gerada" : "Transcrição";
+          const hasAta = m.status === "ata_generated";
+          const isGenerating = generatingAta === m.id;
+          const stColor = hasAta ? "#10b981" : "#6366f1";
+          const stLabel = hasAta ? "Ata gerada" : "Transcrição";
           return (
             <div key={m.id} style={{ borderRadius:10, border:`1px solid ${expanded?"#bfdbfe":"#f1f5f9"}`,
               background:expanded?"#f8fbff":"#fff", overflow:"hidden" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", cursor:"pointer" }}
-                onClick={() => setExpanded(expanded ? null : m.id)}>
-                <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px" }}>
+                <div style={{ flex:1, minWidth:0, cursor:"pointer" }} onClick={() => setExpanded(expanded ? null : m.id)}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3, flexWrap:"wrap" }}>
                     <ProjectBadge project={m.project} />
                     <span style={{ fontSize:11, fontWeight:700, color:stColor }}>● {stLabel}</span>
@@ -335,13 +464,33 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, loadAll }) {
                   <div style={{ fontSize:13, fontWeight:600, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.title}</div>
                   <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>{(m.participants||[]).join(", ")}</div>
                 </div>
-                <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                <div style={{ display:"flex", gap:6, flexShrink:0, alignItems:"center" }}>
+                  {/* Botão classificar projeto */}
+                  <button onClick={e => { e.stopPropagation(); setClassify(m); }}
+                    title="Classificar projeto"
+                    style={{ padding:"4px 10px", borderRadius:6, border:"1px solid #bfdbfe",
+                      background:"#eff6ff", color:"#1e3a8a", fontSize:11, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
+                    🏷 Projeto
+                  </button>
+                  {/* Botão gerar ata */}
+                  <button onClick={e => { e.stopPropagation(); handleGerarAta(m); }}
+                    disabled={isGenerating || hasAta}
+                    title={hasAta ? "Ata já gerada" : "Gerar ata com Claude"}
+                    style={{ padding:"4px 10px", borderRadius:6,
+                      border:`1px solid ${hasAta?"#bbf7d0":isGenerating?"#e2e8f0":"#a5f3fc"}`,
+                      background:hasAta?"#f0fdf4":isGenerating?"#f8fafc":"#ecfeff",
+                      color:hasAta?"#16a34a":isGenerating?"#94a3b8":"#0891b2",
+                      fontSize:11, fontWeight:700, cursor:hasAta||isGenerating?"default":"pointer",
+                      display:"flex", alignItems:"center", gap:4, whiteSpace:"nowrap" }}>
+                    {isGenerating ? <><Spinner size={10}/> Gerando...</> : hasAta ? "✓ Ata ok" : "✨ Gerar Ata"}
+                  </button>
                   <button onClick={e => { e.stopPropagation(); setConfirmDel(m.id); }}
                     style={{ padding:"4px 10px", borderRadius:6, border:"1px solid #fca5a5",
                       background:"#fff", color:"#ef4444", fontSize:11, fontWeight:700, cursor:"pointer" }}>
                     🗑
                   </button>
-                  <span style={{ fontSize:18, color:"#94a3b8", paddingTop:2 }}>{expanded?"↑":"↓"}</span>
+                  <span onClick={() => setExpanded(expanded ? null : m.id)}
+                    style={{ fontSize:18, color:"#94a3b8", paddingTop:2, cursor:"pointer" }}>{expanded?"↑":"↓"}</span>
                 </div>
               </div>
               {expanded && (
@@ -354,7 +503,7 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, loadAll }) {
             </div>
           );
         })}
-        {filtered.length === 0 && !meetings.length && (
+        {filtered.length === 0 && (
           <div style={{ textAlign:"center", padding:48, color:"#94a3b8" }}>Nenhuma transcrição encontrada.</div>
         )}
       </div>
@@ -366,20 +515,30 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, loadAll }) {
           onCancel={() => setConfirmDel(null)}
         />
       )}
+
+      {classifyMeeting && (
+        <ClassifyProjectModal
+          meeting={classifyMeeting}
+          allProjects={allProjects}
+          onSave={(id, project) => updateMeeting(id, { project })}
+          onClose={() => setClassify(null)}
+        />
+      )}
     </div>
   );
 }
 
 // ─── ABA 2: ATAS ─────────────────────────────────────────────────────────────
-function MinutesTab({ meetings, atas, saveAta }) {
+function MinutesTab({ meetings, atas, saveAta, deleteAta }) {
   const [filterProject, setFP]    = useState("Todos");
   const [filterMonth, setFM]      = useState("Todos");
   const [selectedId, setSelected] = useState(null);
   const [editing, setEditing]     = useState(false);
   const [localAta, setLocalAta]   = useState(null);
-  const [saving, setSaving]       = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [exportMsg, setExportMsg] = useState(null);
+  const [saving, setSaving]         = useState(false);
+  const [exporting, setExporting]   = useState(false);
+  const [exportMsg, setExportMsg]   = useState(null);
+  const [confirmDelAta, setConfirmDelAta] = useState(null);
 
   const withAta = meetings.filter(m => m.status === "ata_generated");
   const projects = ["Todos", ...new Set(withAta.map(m => m.project))];
@@ -424,6 +583,31 @@ function MinutesTab({ meetings, atas, saveAta }) {
     setLocalAta(prev => {
       const copy = JSON.parse(JSON.stringify(prev));
       copy[section][ri][ci] = val;
+      return copy;
+    });
+  }
+
+  function addRow(section) {
+    const EMPTY = {
+      participantes: ["","",""],
+      pautas: ["","",""],
+      decisoes: ["","",""],
+      encaminhamentos: ["","","",""],
+    };
+    setLocalAta(prev => {
+      const copy = JSON.parse(JSON.stringify(prev));
+      const newRow = [...EMPTY[section]];
+      newRow[0] = String((copy[section]?.length || 0) + 1);
+      copy[section] = [...(copy[section] || []), newRow];
+      return copy;
+    });
+  }
+
+  function removeRow(section, ri) {
+    setLocalAta(prev => {
+      const copy = JSON.parse(JSON.stringify(prev));
+      copy[section] = copy[section].filter((_,i) => i !== ri)
+        .map((row, i) => { const r = [...row]; r[0] = String(i+1); return r; });
       return copy;
     });
   }
@@ -496,6 +680,10 @@ function MinutesTab({ meetings, atas, saveAta }) {
                       cursor:exporting?"not-allowed":"pointer" }}>
                       {exporting ? "Gerando..." : "⬇ .docx"}
                     </button>
+                    <button onClick={() => setConfirmDelAta(selectedId)} style={{ padding:"7px 14px", borderRadius:8,
+                      border:"1px solid #fca5a5", background:"#fff", color:"#ef4444", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                      🗑 Apagar
+                    </button>
                   </>
                 )}
               </div>
@@ -521,7 +709,7 @@ function MinutesTab({ meetings, atas, saveAta }) {
                     {columns.map((c,i) => <div key={i} style={{ flex:widths[i], padding:"5px 10px", fontWeight:700, fontSize:11, color:"#1f3864" }}>{c}</div>)}
                   </div>
                   {(displayAta[section]||[]).map((row,ri) => (
-                    <div key={ri} style={{ display:"flex", background:ri%2===1?"#e8f0fe":"#fff", borderBottom:"1px solid #e2e8f0" }}>
+                    <div key={ri} style={{ display:"flex", background:ri%2===1?"#e8f0fe":"#fff", borderBottom:"1px solid #e2e8f0", alignItems:"center" }}>
                       {row.map((cell,ci) => (
                         <div key={ci} style={{ flex:widths[ci], padding:"4px 6px" }}>
                           {ci === 0
@@ -531,8 +719,22 @@ function MinutesTab({ meetings, atas, saveAta }) {
                           }
                         </div>
                       ))}
+                      <div style={{ padding:"0 6px", flexShrink:0 }}>
+                        <button onClick={() => removeRow(section, ri)} title="Remover linha"
+                          style={{ width:20, height:20, borderRadius:"50%", border:"none", background:"#fca5a5",
+                            color:"#ef4444", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center",
+                            justifyContent:"center", fontWeight:700, lineHeight:1 }}>−</button>
+                      </div>
                     </div>
                   ))}
+                  <div style={{ padding:"6px 10px", borderTop:"1px dashed #bfdbfe" }}>
+                    <button onClick={() => addRow(section)}
+                      style={{ display:"flex", alignItems:"center", gap:4, padding:"4px 10px", borderRadius:6,
+                        border:"1px dashed #93c5fd", background:"#f0f7ff", color:"#1e3a8a",
+                        fontSize:11, fontWeight:700, cursor:"pointer" }}>
+                      + Adicionar linha
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <ATATable key={section} title={title} columns={columns} rows={displayAta[section]||[]} widths={widths} />
@@ -541,6 +743,14 @@ function MinutesTab({ meetings, atas, saveAta }) {
           </div>
         )}
       </div>
+
+      {confirmDelAta && (
+        <ConfirmModal
+          message="Apagar esta ata? A reunião voltará ao status de transcrição. Esta ação não pode ser desfeita."
+          onConfirm={() => { deleteAta(confirmDelAta); setConfirmDelAta(null); setSelected(null); }}
+          onCancel={() => setConfirmDelAta(null)}
+        />
+      )}
     </div>
   );
 }
@@ -897,8 +1107,8 @@ export default function PWRMeetingApp() {
   const [activeTab, setActiveTab] = useState("transcricoes");
   const {
     meetings, actions, atas, loading, toast,
-    loadAll, addMeeting, deleteMeeting,
-    addAction, updateAction, deleteAction, saveAta,
+    loadAll, addMeeting, deleteMeeting, updateMeeting,
+    addAction, updateAction, deleteAction, saveAta, deleteAta,
   } = useAppData();
 
   const tabs = [
@@ -948,8 +1158,8 @@ export default function PWRMeetingApp() {
           </div>
         ) : (
           <>
-            {activeTab==="transcricoes"    && <TranscriptionsTab meetings={meetings} addMeeting={addMeeting} deleteMeeting={deleteMeeting} loadAll={loadAll} />}
-            {activeTab==="atas"            && <MinutesTab meetings={meetings} atas={atas} saveAta={saveAta} />}
+            {activeTab==="transcricoes"    && <TranscriptionsTab meetings={meetings} addMeeting={addMeeting} deleteMeeting={deleteMeeting} updateMeeting={updateMeeting} saveAta={saveAta} atas={atas} loadAll={loadAll} />}
+            {activeTab==="atas"            && <MinutesTab meetings={meetings} atas={atas} saveAta={saveAta} deleteAta={deleteAta} />}
             {activeTab==="encaminhamentos" && <ActionItemsTab actions={actions} meetings={meetings} addAction={addAction} updateAction={updateAction} deleteAction={deleteAction} />}
             {activeTab==="concluidos"      && <CompletedTab actions={actions} meetings={meetings} />}
             {activeTab==="dashboard"       && <DashboardTab meetings={meetings} actions={actions} />}
