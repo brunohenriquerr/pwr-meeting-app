@@ -425,21 +425,16 @@ function ActionReviewModal({ encaminhamentos, meetingId, meetingProject, meeting
   );
 }
 
-// ─── COMPONENTE CHECKLIST (estilo Trello) ─────────────────────────────────────
-// ✅ CORRIGIDO: items serializado como JSON string no insert/update; parsed na leitura
+// ─── COMPONENTE CHECKLIST ─────────────────────────────────────────────────────
 function Checklist({ actionId, checklists, onUpdate }) {
   const [newItemText, setNewItemText]   = useState({});
   const [addingItem, setAddingItem]     = useState(null);
   const [editTitle, setEditTitle]       = useState(null);
   const [editTitleVal, setEditTitleVal] = useState("");
 
-  // ✅ CORRIGIDO: JSON.stringify nos items para garantir compatibilidade com JSONB
   async function persist(clId, updatedCl) {
     const { error } = await sb.from("action_item_checklists")
-      .update({
-        title: updatedCl.title,
-        items: JSON.stringify(updatedCl.items),
-      })
+      .update({ title: updatedCl.title, items: JSON.stringify(updatedCl.items) })
       .eq("id", clId);
     if (error) console.error("Erro ao persistir checklist:", error);
   }
@@ -447,12 +442,8 @@ function Checklist({ actionId, checklists, onUpdate }) {
   async function toggleItem(clId, itemId) {
     const updatedCl = checklists.find(cl => cl.id === clId);
     if (!updatedCl) return;
-    const newCl = {
-      ...updatedCl,
-      items: updatedCl.items.map(it => it.id === itemId ? { ...it, done: !it.done } : it),
-    };
-    const updated = checklists.map(cl => cl.id !== clId ? cl : newCl);
-    onUpdate(updated);
+    const newCl = { ...updatedCl, items: updatedCl.items.map(it => it.id === itemId ? { ...it, done: !it.done } : it) };
+    onUpdate(checklists.map(cl => cl.id !== clId ? cl : newCl));
     await persist(clId, newCl);
   }
 
@@ -463,8 +454,7 @@ function Checklist({ actionId, checklists, onUpdate }) {
     const updatedCl = checklists.find(cl => cl.id === clId);
     if (!updatedCl) return;
     const newCl = { ...updatedCl, items: [...updatedCl.items, newItem] };
-    const updated = checklists.map(cl => cl.id !== clId ? cl : newCl);
-    onUpdate(updated);
+    onUpdate(checklists.map(cl => cl.id !== clId ? cl : newCl));
     setNewItemText(prev => ({ ...prev, [clId]: "" }));
     setAddingItem(null);
     await persist(clId, newCl);
@@ -474,8 +464,7 @@ function Checklist({ actionId, checklists, onUpdate }) {
     const updatedCl = checklists.find(cl => cl.id === clId);
     if (!updatedCl) return;
     const newCl = { ...updatedCl, items: updatedCl.items.filter(it => it.id !== itemId) };
-    const updated = checklists.map(cl => cl.id !== clId ? cl : newCl);
-    onUpdate(updated);
+    onUpdate(checklists.map(cl => cl.id !== clId ? cl : newCl));
     await persist(clId, newCl);
   }
 
@@ -489,8 +478,7 @@ function Checklist({ actionId, checklists, onUpdate }) {
     const updatedCl = checklists.find(cl => cl.id === clId);
     if (!updatedCl) return;
     const newCl = { ...updatedCl, title: editTitleVal.trim() };
-    const updated = checklists.map(cl => cl.id !== clId ? cl : newCl);
-    onUpdate(updated);
+    onUpdate(checklists.map(cl => cl.id !== clId ? cl : newCl));
     setEditTitle(null);
     await persist(clId, newCl);
   }
@@ -504,9 +492,7 @@ function Checklist({ actionId, checklists, onUpdate }) {
         const total = cl.items.length;
         const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
         return (
-          <div key={cl.id} style={{ background:"#f8fafc", borderRadius:8, border:"1px solid #e2e8f0",
-            padding:"10px 12px", marginBottom:8 }}>
-            {/* Header */}
+          <div key={cl.id} style={{ background:"#f8fafc", borderRadius:8, border:"1px solid #e2e8f0", padding:"10px 12px", marginBottom:8 }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
               {editTitle === cl.id ? (
                 <input autoFocus value={editTitleVal}
@@ -521,61 +507,45 @@ function Checklist({ actionId, checklists, onUpdate }) {
                 </span>
               )}
               <button onClick={() => removeChecklist(cl.id)}
-                style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, color:"#94a3b8", padding:"0 2px" }}
-                title="Remover checklist">✕</button>
+                style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, color:"#94a3b8", padding:"0 2px" }}>✕</button>
             </div>
-
-            {/* Barra de progresso */}
             {total > 0 && (
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
                 <span style={{ fontSize:9, color:"#94a3b8", fontWeight:700, minWidth:24 }}>{pct}%</span>
                 <div style={{ flex:1, height:4, background:"#e2e8f0", borderRadius:99, overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${pct}%`, background:pct===100?"#16a34a":"#1e3a8a",
-                    borderRadius:99, transition:"width 0.3s" }} />
+                  <div style={{ height:"100%", width:`${pct}%`, background:pct===100?"#16a34a":"#1e3a8a", borderRadius:99, transition:"width 0.3s" }} />
                 </div>
                 <span style={{ fontSize:9, color:"#94a3b8", fontWeight:700 }}>{done}/{total}</span>
               </div>
             )}
-
-            {/* Itens */}
             {cl.items.map(it => (
-              <div key={it.id} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4,
-                padding:"3px 0", borderRadius:4 }}>
+              <div key={it.id} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4, padding:"3px 0" }}>
                 <div onClick={() => toggleItem(cl.id, it.id)} style={{
                   width:14, height:14, borderRadius:3, border:`2px solid ${it.done?"#1e3a8a":"#cbd5e1"}`,
                   background:it.done?"#1e3a8a":"#fff", cursor:"pointer", flexShrink:0,
                   display:"flex", alignItems:"center", justifyContent:"center" }}>
                   {it.done && <span style={{ color:"#fff", fontSize:9, fontWeight:900, lineHeight:1 }}>✓</span>}
                 </div>
-                <span style={{ fontSize:11, color:it.done?"#94a3b8":"#334155",
-                  textDecoration:it.done?"line-through":"none", flex:1, lineHeight:1.4 }}>{it.text}</span>
+                <span style={{ fontSize:11, color:it.done?"#94a3b8":"#334155", textDecoration:it.done?"line-through":"none", flex:1, lineHeight:1.4 }}>{it.text}</span>
                 <button onClick={() => removeItem(cl.id, it.id)}
-                  style={{ background:"none", border:"none", cursor:"pointer", fontSize:11,
-                    color:"#d1d5db", padding:0, opacity:0.6 }}
-                  title="Remover item">✕</button>
+                  style={{ background:"none", border:"none", cursor:"pointer", fontSize:11, color:"#d1d5db", padding:0, opacity:0.6 }}>✕</button>
               </div>
             ))}
-
-            {/* Adicionar item */}
             {addingItem === cl.id ? (
               <div style={{ marginTop:6 }}>
                 <input autoFocus value={newItemText[cl.id] || ""} placeholder="Item do checklist..."
                   onChange={e => setNewItemText(prev => ({ ...prev, [cl.id]: e.target.value }))}
                   onKeyDown={e => { if (e.key==="Enter") addItem(cl.id); if (e.key==="Escape") setAddingItem(null); }}
-                  style={{ width:"100%", padding:"4px 8px", borderRadius:5, border:"1px solid #bfdbfe",
-                    fontSize:11, boxSizing:"border-box", marginBottom:4 }} />
+                  style={{ width:"100%", padding:"4px 8px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, boxSizing:"border-box", marginBottom:4 }} />
                 <div style={{ display:"flex", gap:4 }}>
-                  <button onClick={() => addItem(cl.id)} style={{ padding:"4px 10px", borderRadius:5, border:"none",
-                    background:"#1e3a8a", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}>Salvar</button>
-                  <button onClick={() => setAddingItem(null)} style={{ padding:"4px 8px", borderRadius:5,
-                    border:"1px solid #e2e8f0", background:"#fff", fontSize:11, cursor:"pointer" }}>✕</button>
+                  <button onClick={() => addItem(cl.id)} style={{ padding:"4px 10px", borderRadius:5, border:"none", background:"#1e3a8a", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}>Salvar</button>
+                  <button onClick={() => setAddingItem(null)} style={{ padding:"4px 8px", borderRadius:5, border:"1px solid #e2e8f0", background:"#fff", fontSize:11, cursor:"pointer" }}>✕</button>
                 </div>
               </div>
             ) : (
               <button onClick={() => setAddingItem(cl.id)}
-                style={{ marginTop:4, display:"flex", alignItems:"center",
-                  gap:4, padding:"3px 8px", borderRadius:5, border:"1px dashed #cbd5e1",
-                  background:"none", color:"#94a3b8", fontSize:10, fontWeight:600, cursor:"pointer" }}>
+                style={{ marginTop:4, display:"flex", alignItems:"center", gap:4, padding:"3px 8px", borderRadius:5,
+                  border:"1px dashed #cbd5e1", background:"none", color:"#94a3b8", fontSize:10, fontWeight:600, cursor:"pointer" }}>
                 + Adicionar item
               </button>
             )}
@@ -630,53 +600,43 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
     }
   }
 
-// ─── SUBSTITUA a função handlePDF dentro de TranscriptionsTab ────────────────
-// Localizar: "async function handlePDF(e) {"  e substituir pelo bloco abaixo
+  // ✅ CORRIGIDO: lê o texto real do PDF via /api/extract-pdf
+  async function handlePDF(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-async function handlePDF(e) {
-  const file = e.target.files?.[0];
-  if (!file) return;
+    setSyncing(true);
+    setSyncMsg("📄 Extraindo texto do PDF...");
 
-  setSyncing(true);
-  setSyncMsg("📄 Extraindo texto do PDF...");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
+      const res = await fetch("/api/extract-pdf", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro na extração");
 
-    const res = await fetch("/api/extract-pdf", { method: "POST", body: formData });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Erro na extração");
+      const name = file.name.replace(/\.pdf$/i, "");
+      const today = new Date();
+      const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+      const dateStr = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+      const project =
+        Object.keys(DEFAULT_PROJECT_COLORS).find(p => name.toLowerCase().includes(p.toLowerCase())) ?? "Sem projeto";
 
-    const name = file.name.replace(/\.pdf$/i, "");
-    const today = new Date();
-    const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-    const dateStr = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
-    const project =
-      Object.keys(DEFAULT_PROJECT_COLORS).find((p) =>
-        name.toLowerCase().includes(p.toLowerCase())
-      ) ?? "Sem projeto";
+      await addMeeting({
+        project, month, date: dateStr, title: name,
+        participants: [], status: "transcribed", source: "pdf",
+        transcription: data.text,
+      });
 
-    await addMeeting({
-      project,
-      month,
-      date: dateStr,
-      title: name,
-      participants: [],
-      status: "transcribed",
-      source: "pdf",
-      transcription: data.text, // ← texto real extraído do PDF
-    });
-
-    setSyncMsg("✓ PDF importado com sucesso.");
-  } catch (err) {
-    setSyncMsg(`⚠ Erro: ${err.message}`);
-  } finally {
-    setSyncing(false);
-    e.target.value = "";
-    setTimeout(() => setSyncMsg(null), 5000);
-  }
-}
+      setSyncMsg("✓ PDF importado com sucesso.");
+    } catch (err) {
+      setSyncMsg(`⚠ Erro: ${err.message}`);
+    } finally {
+      setSyncing(false);
+      e.target.value = "";
+      setTimeout(() => setSyncMsg(null), 5000);
+    }
   }
 
   async function handleGerarAta(meeting) {
@@ -711,6 +671,7 @@ async function handlePDF(e) {
       setGeneratingAta(null);
       setTimeout(() => setSyncMsg(null), 6000);
     }
+  }
 
   const total = filtered.length;
   const countLabel = total === 1 ? "1 reunião encontrada" : `${total} reuniões encontradas`;
@@ -1010,8 +971,6 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
   const [filterProject, setFP]      = useState("Todos");
   const [newProject, setNewProject] = useState("");
   const [showNewProj, setShowNewProj] = useState(false);
-
-  // Checklists: { [actionId]: [{ id, title, items: [] }] }
   const [checklists, setChecklists]           = useState({});
   const [addingChecklist, setAddingChecklist] = useState(null);
   const [newClTitle, setNewClTitle]           = useState("");
@@ -1021,7 +980,6 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
     return () => clearInterval(t);
   }, []);
 
-  // ✅ CORRIGIDO: parse defensivo de items (pode vir como string ou array do Supabase)
   useEffect(() => {
     async function loadChecklists() {
       const { data, error } = await sb.from("action_item_checklists").select("*");
@@ -1031,12 +989,8 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
           if (!map[cl.action_item_id]) map[cl.action_item_id] = [];
           let parsedItems = [];
           try {
-            parsedItems = typeof cl.items === "string"
-              ? JSON.parse(cl.items)
-              : Array.isArray(cl.items) ? cl.items : [];
-          } catch (e) {
-            parsedItems = [];
-          }
+            parsedItems = typeof cl.items === "string" ? JSON.parse(cl.items) : Array.isArray(cl.items) ? cl.items : [];
+          } catch (e) { parsedItems = []; }
           map[cl.action_item_id].push({ id: cl.id, title: cl.title, items: parsedItems });
         });
         setChecklists(map);
@@ -1052,10 +1006,8 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
   ])].sort();
 
   const allResponsibles = ["Todos", ...new Set(actions.map(a => a.responsible).filter(Boolean))].sort((a, b) => {
-    if (a === "Todos") return -1;
-    if (b === "Todos") return 1;
-    if (a === ME) return -1;
-    if (b === ME) return 1;
+    if (a === "Todos") return -1; if (b === "Todos") return 1;
+    if (a === ME) return -1; if (b === ME) return 1;
     return a.localeCompare(b);
   });
 
@@ -1089,28 +1041,19 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
     const proj = showNewProj && newProject.trim() ? newProject.trim() : (newForm.project || "Sem projeto");
     const meetingId = newForm.meeting_id ? parseInt(newForm.meeting_id) : (meetings[0]?.id ?? null);
     await addAction({ meeting_id:meetingId, description:newForm.description,
-      responsible:newForm.responsible||ME, due_date:newForm.due_date||"A Definir",
-      status:colId, project:proj });
+      responsible:newForm.responsible||ME, due_date:newForm.due_date||"A Definir", status:colId, project:proj });
     setNewForm({ description:"", responsible:"", due_date:"", meeting_id:"", project:"" });
     setNewProject(""); setShowNewProj(false); setAddingCol(null);
   }
 
-  // ✅ CORRIGIDO: JSON.stringify no items:[] para garantir insert correto no JSONB
   async function addChecklist(actionId) {
     const title = newClTitle.trim() || "Checklist";
     const { data, error } = await sb.from("action_item_checklists")
       .insert({ action_item_id: actionId, title, items: JSON.stringify([]) })
-      .select()
-      .single();
-    if (error) {
-      console.error("Erro ao criar checklist:", error);
-      return;
-    }
+      .select().single();
+    if (error) { console.error("Erro ao criar checklist:", error); return; }
     if (data) {
-      setChecklists(prev => ({
-        ...prev,
-        [actionId]: [...(prev[actionId] || []), { id: data.id, title: data.title, items: [] }],
-      }));
+      setChecklists(prev => ({ ...prev, [actionId]: [...(prev[actionId] || []), { id: data.id, title: data.title, items: [] }] }));
     }
     setAddingChecklist(null);
     setNewClTitle("");
@@ -1118,7 +1061,6 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
 
   return (
     <div>
-      {/* ── Filtros ── */}
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, flexWrap:"wrap" }}>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <span style={{ fontSize:12, fontWeight:600, color:"#64748b" }}>Responsável:</span>
@@ -1213,7 +1155,6 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                   const isMe = a.responsible === ME;
                   const isEditing = editingId === a.id;
                   const cardChecklists = checklists[a.id] || [];
-
                   return (
                     <div key={a.id} draggable onDragStart={() => setDragging(a.id)} onDragEnd={() => setDragging(null)}
                       style={{ background:"#fff", borderRadius:8, padding:"10px 10px 8px",
@@ -1247,15 +1188,8 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                             <span style={{ fontSize:10, color:isMe?"#1e3a8a":"#64748b", fontWeight:isMe?700:400 }}>👤 {a.responsible}{isMe?" (eu)":""}</span>
                             <span style={{ fontSize:10, color:"#94a3b8" }}>📅 {a.due_date}</span>
                           </div>
-
-                          {/* Checklists persistidos */}
-                          <Checklist
-                            actionId={a.id}
-                            checklists={cardChecklists}
-                            onUpdate={updated => setChecklists(prev => ({ ...prev, [a.id]: updated }))}
-                          />
-
-                          {/* Botão adicionar checklist */}
+                          <Checklist actionId={a.id} checklists={cardChecklists}
+                            onUpdate={updated => setChecklists(prev => ({ ...prev, [a.id]: updated }))} />
                           {addingChecklist === a.id ? (
                             <div style={{ marginTop:6 }}>
                               <input autoFocus value={newClTitle} placeholder="Título do checklist..."
@@ -1278,7 +1212,6 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                               ☑ Checklist
                             </button>
                           )}
-
                           <div style={{ display:"flex", gap:4, justifyContent:"flex-end", marginTop:6 }}>
                             <button onClick={() => startEdit(a)} style={{ fontSize:10, padding:"2px 7px", borderRadius:5,
                               border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", color:"#475569" }}>✏️</button>
@@ -1384,7 +1317,6 @@ function DashboardTab({ meetings, actions }) {
   const inProg   = fa.filter(a => a.status === "in_progress").length;
   const rate     = total > 0 ? Math.round((done / total) * 100) : 0;
   const projectsInFilter = [...new Set(fa.map(getActionProject))];
-
   const hasActiveFilters = filterProject !== "Todos" || filterStatus !== "Todos" || filterResponsible !== "Todos";
 
   return (
@@ -1548,9 +1480,7 @@ function EnvioAgendasTab() {
         <div style={{ fontSize:18, fontWeight:800, color:"#1e293b", marginBottom:4 }}>📅 Envio de Agendas</div>
         <div style={{ fontSize:13, color:"#64748b" }}>Controle semanal de atividades programadas e envio de agendas por projeto</div>
       </div>
-
-      <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e5e7eb",
-        overflow:"hidden", boxShadow:"0 1px 4px rgba(0,0,0,.06)" }}>
+      <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e5e7eb", overflow:"hidden", boxShadow:"0 1px 4px rgba(0,0,0,.06)" }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 190px 190px 44px",
           padding:"11px 20px", background:"#f9fafb", borderBottom:"1px solid #e5e7eb", gap:8 }}>
           {["PROJETO","ATIVIDADES PROGRAMADAS","AGENDA ENVIADA",""].map((h, i) => (
@@ -1558,7 +1488,6 @@ function EnvioAgendasTab() {
               textTransform:"uppercase", letterSpacing:"0.05em", textAlign:i>0&&i<3?"center":"left" }}>{h}</div>
           ))}
         </div>
-
         {loading ? (
           <div style={{ padding:40, textAlign:"center", color:"#9ca3af" }}>Carregando...</div>
         ) : (
@@ -1598,7 +1527,6 @@ function EnvioAgendasTab() {
                 </div>
               </div>
             ))}
-
             {adicionando && (
               <div style={{ display:"grid", gridTemplateColumns:"1fr 190px 190px 44px",
                 padding:"10px 20px", gap:8, alignItems:"center", background:"#fffbeb",
@@ -1616,13 +1544,11 @@ function EnvioAgendasTab() {
                 </div>
               </div>
             )}
-
             {projetos.length === 0 && !adicionando && (
               <div style={{ padding:40, textAlign:"center", color:"#9ca3af", fontSize:13 }}>Nenhum projeto cadastrado ainda.</div>
             )}
           </>
         )}
-
         <div style={{ padding:"12px 20px", borderTop:"1px solid #e5e7eb", background:"#f9fafb" }}>
           {!adicionando ? (
             <button onClick={() => setAdicionando(true)}
@@ -1638,7 +1564,6 @@ function EnvioAgendasTab() {
           )}
         </div>
       </div>
-
       <div style={{ marginTop:14, display:"flex", gap:20, flexWrap:"wrap" }}>
         <span style={{ fontSize:11, color:"#9ca3af" }}>✅ Atividades planejadas para a semana</span>
         <span style={{ fontSize:11, color:"#9ca3af" }}>📨 Agenda enviada ao cliente</span>
