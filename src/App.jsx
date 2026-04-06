@@ -630,18 +630,53 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
     }
   }
 
-  async function handlePDF(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+// ─── SUBSTITUA a função handlePDF dentro de TranscriptionsTab ────────────────
+// Localizar: "async function handlePDF(e) {"  e substituir pelo bloco abaixo
+
+async function handlePDF(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  setSyncing(true);
+  setSyncMsg("📄 Extraindo texto do PDF...");
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch("/api/extract-pdf", { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Erro na extração");
+
     const name = file.name.replace(/\.pdf$/i, "");
     const today = new Date();
-    const month = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
-    const dateStr = `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
-    const project = Object.keys(DEFAULT_PROJECT_COLORS).find(p => name.toLowerCase().includes(p.toLowerCase())) ?? "Sem projeto";
-    await addMeeting({ project, month, date: dateStr, title: name,
-      participants: [], status: "transcribed", source: "pdf",
-      transcription: `[PDF importado: ${file.name}]\nConteúdo extraído automaticamente.` });
+    const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    const dateStr = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+    const project =
+      Object.keys(DEFAULT_PROJECT_COLORS).find((p) =>
+        name.toLowerCase().includes(p.toLowerCase())
+      ) ?? "Sem projeto";
+
+    await addMeeting({
+      project,
+      month,
+      date: dateStr,
+      title: name,
+      participants: [],
+      status: "transcribed",
+      source: "pdf",
+      transcription: data.text, // ← texto real extraído do PDF
+    });
+
+    setSyncMsg("✓ PDF importado com sucesso.");
+  } catch (err) {
+    setSyncMsg(`⚠ Erro: ${err.message}`);
+  } finally {
+    setSyncing(false);
     e.target.value = "";
+    setTimeout(() => setSyncMsg(null), 5000);
+  }
+}
   }
 
   async function handleGerarAta(meeting) {
@@ -676,7 +711,6 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
       setGeneratingAta(null);
       setTimeout(() => setSyncMsg(null), 6000);
     }
-  }
 
   const total = filtered.length;
   const countLabel = total === 1 ? "1 reunião encontrada" : `${total} reuniões encontradas`;
