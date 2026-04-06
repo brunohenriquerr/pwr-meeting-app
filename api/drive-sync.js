@@ -159,7 +159,7 @@ export default async function handler(req, res) {
 
     for (const folder of foldersToScan) {
       const files = await listDriveFolder(folder.id, token);
-      const textFiles = files.filter(f => SUPPORTED_TYPES.some(t => f.mimeType?.startsWith(t.split("/")[0])) || f.mimeType === "application/vnd.google-apps.document");
+      const textFiles = files.filter(f => SUPPORTED_TYPES.includes(f.mimeType));
 
       for (const file of textFiles) {
         if (existingIds.has(file.id)) continue; // já importado
