@@ -21,7 +21,6 @@ let PROJECT_COLORS = { ...DEFAULT_PROJECT_COLORS };
 
 function getProjectColor(project) {
   if (PROJECT_COLORS[project]) return PROJECT_COLORS[project];
-  // Assign a deterministic color based on project name
   const idx = Object.keys(PROJECT_COLORS).length % EXTRA_COLORS.length;
   PROJECT_COLORS[project] = EXTRA_COLORS[idx];
   return PROJECT_COLORS[project];
@@ -276,7 +275,6 @@ function ClassifyProjectModal({ meeting, allProjects, onSave, onClose }) {
         boxShadow:"0 20px 48px rgba(0,0,0,.25)" }}>
         <div style={{ fontSize:15, fontWeight:800, color:"#1e293b", marginBottom:4 }}>Classificar Projeto</div>
         <div style={{ fontSize:12, color:"#64748b", marginBottom:18 }}>{meeting.title}</div>
-
         <div style={{ fontSize:11, fontWeight:700, color:"#475569", marginBottom:8, textTransform:"uppercase" }}>Selecionar projeto existente</div>
         <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:16, maxHeight:200, overflowY:"auto" }}>
           {allProjects.map(p => (
@@ -289,7 +287,6 @@ function ClassifyProjectModal({ meeting, allProjects, onSave, onClose }) {
             </button>
           ))}
         </div>
-
         <div style={{ borderTop:"1px solid #f1f5f9", paddingTop:14, marginBottom:16 }}>
           <div style={{ fontSize:11, fontWeight:700, color:"#475569", marginBottom:8, textTransform:"uppercase" }}>Ou criar novo projeto</div>
           <input value={newName} onChange={e => { setNewName(e.target.value); setCreating(true); }}
@@ -297,7 +294,6 @@ function ClassifyProjectModal({ meeting, allProjects, onSave, onClose }) {
             style={{ width:"100%", padding:"7px 10px", borderRadius:8, border:`2px solid ${creating && newName?"#1e3a8a":"#e2e8f0"}`,
               fontSize:12, outline:"none", boxSizing:"border-box" }} />
         </div>
-
         <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
           <button onClick={onClose} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #e2e8f0",
             background:"#fff", fontSize:12, cursor:"pointer", color:"#475569" }}>Cancelar</button>
@@ -312,27 +308,20 @@ function ClassifyProjectModal({ meeting, allProjects, onSave, onClose }) {
 // ─── MODAL RENOMEAR TRANSCRIÇÃO ───────────────────────────────────────────────
 function RenameModal({ meeting, onSave, onClose }) {
   const [title, setTitle] = useState(meeting.title);
-
   function handleSave() {
     if (!title.trim()) return;
     onSave(meeting.id, title.trim());
     onClose();
   }
-
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:999,
       display:"flex", alignItems:"center", justifyContent:"center" }}>
       <div style={{ background:"#fff", borderRadius:14, padding:28, maxWidth:420, width:"90%",
         boxShadow:"0 20px 48px rgba(0,0,0,.25)" }}>
         <div style={{ fontSize:15, fontWeight:800, color:"#1e293b", marginBottom:16 }}>Renomear Transcrição</div>
-        <input
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && handleSave()}
-          autoFocus
+        <input value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => e.key==="Enter"&&handleSave()} autoFocus
           style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"2px solid #1e3a8a",
-            fontSize:13, outline:"none", boxSizing:"border-box", marginBottom:20 }}
-        />
+            fontSize:13, outline:"none", boxSizing:"border-box", marginBottom:20 }} />
         <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
           <button onClick={onClose} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #e2e8f0",
             background:"#fff", fontSize:12, cursor:"pointer", color:"#475569" }}>Cancelar</button>
@@ -346,7 +335,6 @@ function RenameModal({ meeting, onSave, onClose }) {
 
 // ─── MODAL REVISÃO DE ENCAMINHAMENTOS DA ATA ─────────────────────────────────
 function ActionReviewModal({ encaminhamentos, meetingId, meetingProject, meetings, addActions, onClose }) {
-  // encaminhamentos vem como array de arrays: [[nº, ação, responsável, prazo], ...]
   const [items, setItems] = useState(
     (encaminhamentos || []).map((row, i) => ({
       id: i,
@@ -358,30 +346,20 @@ function ActionReviewModal({ encaminhamentos, meetingId, meetingProject, meeting
     }))
   );
   const [saving, setSaving] = useState(false);
-
-  // Coletar projetos disponíveis
   const allProjects = [...new Set([
     ...Object.keys(DEFAULT_PROJECT_COLORS),
     ...meetings.map(m => m.project).filter(Boolean),
   ])].sort();
 
-  function toggle(id) {
-    setItems(prev => prev.map(it => it.id === id ? { ...it, include: !it.include } : it));
-  }
-
-  function updateItem(id, field, value) {
-    setItems(prev => prev.map(it => it.id === id ? { ...it, [field]: value } : it));
-  }
+  function toggle(id) { setItems(prev => prev.map(it => it.id===id ? {...it, include:!it.include} : it)); }
+  function updateItem(id, field, value) { setItems(prev => prev.map(it => it.id===id ? {...it, [field]:value} : it)); }
 
   async function handleSend() {
     setSaving(true);
     const toSend = items.filter(it => it.include).map(it => ({
-      meeting_id: meetingId,
-      description: it.description,
-      responsible: it.responsible,
-      due_date: it.due_date,
-      project: it.project,
-      status: "pending",
+      meeting_id: meetingId, description: it.description,
+      responsible: it.responsible, due_date: it.due_date,
+      project: it.project, status: "pending",
     }));
     await addActions(toSend);
     setSaving(false);
@@ -389,98 +367,197 @@ function ActionReviewModal({ encaminhamentos, meetingId, meetingProject, meeting
   }
 
   const includedCount = items.filter(i => i.include).length;
-
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:999,
       display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
       <div style={{ background:"#fff", borderRadius:16, maxWidth:680, width:"100%",
         boxShadow:"0 24px 64px rgba(0,0,0,.3)", display:"flex", flexDirection:"column", maxHeight:"90vh" }}>
-        {/* Header */}
         <div style={{ padding:"20px 24px 16px", borderBottom:"1px solid #f1f5f9" }}>
-          <div style={{ fontSize:16, fontWeight:800, color:"#1e293b", marginBottom:4 }}>
-            Revisar Encaminhamentos da Ata
-          </div>
-          <div style={{ fontSize:12, color:"#64748b" }}>
-            Selecione quais encaminhamentos devem ir para o Kanban de pendências.
-            Desmarque para descartar ou edite os campos antes de enviar.
-          </div>
+          <div style={{ fontSize:16, fontWeight:800, color:"#1e293b", marginBottom:4 }}>Revisar Encaminhamentos da Ata</div>
+          <div style={{ fontSize:12, color:"#64748b" }}>Selecione quais encaminhamentos devem ir para o Kanban.</div>
         </div>
-
-        {/* Lista */}
         <div style={{ flex:1, overflowY:"auto", padding:"12px 24px" }}>
-          {items.length === 0 && (
-            <div style={{ textAlign:"center", padding:32, color:"#94a3b8" }}>Nenhum encaminhamento encontrado na ata.</div>
-          )}
+          {items.length===0 && <div style={{ textAlign:"center", padding:32, color:"#94a3b8" }}>Nenhum encaminhamento encontrado.</div>}
           {items.map(it => (
             <div key={it.id} style={{ display:"flex", gap:10, padding:"12px 14px", marginBottom:8, borderRadius:10,
-              border:`2px solid ${it.include ? "#bfdbfe" : "#f1f5f9"}`,
-              background: it.include ? "#f8fbff" : "#f8fafc",
-              opacity: it.include ? 1 : 0.5, transition:"all 0.15s" }}>
-              {/* Checkbox */}
+              border:`2px solid ${it.include?"#bfdbfe":"#f1f5f9"}`, background:it.include?"#f8fbff":"#f8fafc",
+              opacity:it.include?1:0.5, transition:"all 0.15s" }}>
               <div onClick={() => toggle(it.id)} style={{ flexShrink:0, marginTop:2, cursor:"pointer" }}>
                 <div style={{ width:20, height:20, borderRadius:5, border:`2px solid ${it.include?"#1e3a8a":"#cbd5e1"}`,
-                  background: it.include ? "#1e3a8a" : "#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  background:it.include?"#1e3a8a":"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
                   {it.include && <span style={{ color:"#fff", fontSize:12, fontWeight:900 }}>✓</span>}
                 </div>
               </div>
-              {/* Campos */}
               <div style={{ flex:1, display:"flex", flexDirection:"column", gap:5 }}>
-                <input
-                  value={it.description}
-                  onChange={e => updateItem(it.id, "description", e.target.value)}
-                  disabled={!it.include}
-                  style={{ padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0",
-                    fontSize:12, fontWeight:600, color:"#1e293b", width:"100%", boxSizing:"border-box" }}
-                />
+                <input value={it.description} onChange={e=>updateItem(it.id,"description",e.target.value)} disabled={!it.include}
+                  style={{ padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:12, fontWeight:600, color:"#1e293b", width:"100%", boxSizing:"border-box" }} />
                 <div style={{ display:"flex", gap:6 }}>
-                  <input
-                    value={it.responsible}
-                    onChange={e => updateItem(it.id, "responsible", e.target.value)}
-                    disabled={!it.include}
-                    placeholder="Responsável"
-                    style={{ flex:1, padding:"4px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11 }}
-                  />
-                  <input
-                    value={it.due_date}
-                    onChange={e => updateItem(it.id, "due_date", e.target.value)}
-                    disabled={!it.include}
-                    placeholder="Prazo"
-                    style={{ flex:1, padding:"4px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11 }}
-                  />
-                  <select
-                    value={it.project}
-                    onChange={e => updateItem(it.id, "project", e.target.value)}
-                    disabled={!it.include}
+                  <input value={it.responsible} onChange={e=>updateItem(it.id,"responsible",e.target.value)} disabled={!it.include} placeholder="Responsável"
+                    style={{ flex:1, padding:"4px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11 }} />
+                  <input value={it.due_date} onChange={e=>updateItem(it.id,"due_date",e.target.value)} disabled={!it.include} placeholder="Prazo"
+                    style={{ flex:1, padding:"4px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11 }} />
+                  <select value={it.project} onChange={e=>updateItem(it.id,"project",e.target.value)} disabled={!it.include}
                     style={{ flex:1, padding:"4px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, background:"#fff" }}>
                     {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
-                    <option value={it.project}>{it.project}</option>
                   </select>
                 </div>
               </div>
             </div>
           ))}
         </div>
-
-        {/* Footer */}
         <div style={{ padding:"16px 24px", borderTop:"1px solid #f1f5f9",
           display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontSize:12, color:"#64748b" }}>
-            {includedCount} de {items.length} encaminhamentos selecionados
-          </span>
+          <span style={{ fontSize:12, color:"#64748b" }}>{includedCount} de {items.length} selecionados</span>
           <div style={{ display:"flex", gap:8 }}>
             <button onClick={onClose} style={{ padding:"8px 18px", borderRadius:8, border:"1px solid #e2e8f0",
               background:"#fff", fontSize:12, cursor:"pointer", color:"#475569", fontWeight:600 }}>Cancelar</button>
-            <button onClick={handleSend} disabled={saving || includedCount === 0}
+            <button onClick={handleSend} disabled={saving||includedCount===0}
               style={{ padding:"8px 18px", borderRadius:8, border:"none",
-                background: includedCount === 0 ? "#e2e8f0" : "#1e3a8a",
-                color: includedCount === 0 ? "#94a3b8" : "#fff",
-                fontSize:12, fontWeight:700, cursor: includedCount === 0 || saving ? "default" : "pointer",
+                background:includedCount===0?"#e2e8f0":"#1e3a8a", color:includedCount===0?"#94a3b8":"#fff",
+                fontSize:12, fontWeight:700, cursor:includedCount===0||saving?"default":"pointer",
                 display:"flex", alignItems:"center", gap:6 }}>
               {saving ? <><Spinner size={12}/> Enviando...</> : `✅ Enviar ${includedCount} para Kanban`}
             </button>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── COMPONENTE CHECKLIST (estilo Trello) ─────────────────────────────────────
+function Checklist({ cardId, checklists, onUpdate }) {
+  // checklists: [{ id, title, items: [{ id, text, done }] }]
+  const [newItemText, setNewItemText] = useState({});   // { checklistId: text }
+  const [addingItem, setAddingItem]   = useState(null); // checklistId
+  const [editTitle, setEditTitle]     = useState(null); // checklistId
+  const [editTitleVal, setEditTitleVal] = useState("");
+
+  function toggleItem(clId, itemId) {
+    const updated = checklists.map(cl =>
+      cl.id !== clId ? cl : {
+        ...cl, items: cl.items.map(it => it.id===itemId ? {...it, done:!it.done} : it)
+      }
+    );
+    onUpdate(updated);
+  }
+
+  function addItem(clId) {
+    const text = (newItemText[clId]||"").trim();
+    if (!text) return;
+    const updated = checklists.map(cl =>
+      cl.id !== clId ? cl : {
+        ...cl, items: [...cl.items, { id: Date.now()+"_"+Math.random(), text, done:false }]
+      }
+    );
+    onUpdate(updated);
+    setNewItemText(prev => ({...prev, [clId]:""}));
+    setAddingItem(null);
+  }
+
+  function removeItem(clId, itemId) {
+    const updated = checklists.map(cl =>
+      cl.id !== clId ? cl : { ...cl, items: cl.items.filter(it => it.id!==itemId) }
+    );
+    onUpdate(updated);
+  }
+
+  function removeChecklist(clId) {
+    onUpdate(checklists.filter(cl => cl.id!==clId));
+  }
+
+  function saveTitle(clId) {
+    if (!editTitleVal.trim()) return;
+    const updated = checklists.map(cl => cl.id!==clId ? cl : {...cl, title: editTitleVal.trim()});
+    onUpdate(updated);
+    setEditTitle(null);
+  }
+
+  if (!checklists || checklists.length===0) return null;
+
+  return (
+    <div style={{ marginTop:8 }}>
+      {checklists.map(cl => {
+        const done  = cl.items.filter(i=>i.done).length;
+        const total = cl.items.length;
+        const pct   = total>0 ? Math.round((done/total)*100) : 0;
+        return (
+          <div key={cl.id} style={{ background:"#f8fafc", borderRadius:8, border:"1px solid #e2e8f0",
+            padding:"10px 12px", marginBottom:8 }}>
+            {/* Header do checklist */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+              {editTitle===cl.id ? (
+                <input autoFocus value={editTitleVal} onChange={e=>setEditTitleVal(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==="Enter") saveTitle(cl.id); if(e.key==="Escape") setEditTitle(null); }}
+                  onBlur={()=>saveTitle(cl.id)}
+                  style={{ flex:1, padding:"3px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, fontWeight:700 }} />
+              ) : (
+                <span onClick={()=>{ setEditTitle(cl.id); setEditTitleVal(cl.title); }}
+                  style={{ fontSize:11, fontWeight:800, color:"#1e293b", cursor:"pointer", flex:1 }}>
+                  ☑ {cl.title}
+                </span>
+              )}
+              <button onClick={()=>removeChecklist(cl.id)}
+                style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, color:"#94a3b8", padding:"0 2px" }}
+                title="Remover checklist">✕</button>
+            </div>
+
+            {/* Barra de progresso */}
+            {total > 0 && (
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+                <span style={{ fontSize:9, color:"#94a3b8", fontWeight:700, minWidth:24 }}>{pct}%</span>
+                <div style={{ flex:1, height:4, background:"#e2e8f0", borderRadius:99, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${pct}%`, background:pct===100?"#16a34a":"#1e3a8a",
+                    borderRadius:99, transition:"width 0.3s" }} />
+                </div>
+                <span style={{ fontSize:9, color:"#94a3b8", fontWeight:700 }}>{done}/{total}</span>
+              </div>
+            )}
+
+            {/* Itens */}
+            {cl.items.map(it => (
+              <div key={it.id} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4,
+                padding:"3px 0", borderRadius:4 }}>
+                <div onClick={()=>toggleItem(cl.id, it.id)} style={{
+                  width:14, height:14, borderRadius:3, border:`2px solid ${it.done?"#1e3a8a":"#cbd5e1"}`,
+                  background:it.done?"#1e3a8a":"#fff", cursor:"pointer", flexShrink:0,
+                  display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {it.done && <span style={{ color:"#fff", fontSize:9, fontWeight:900, lineHeight:1 }}>✓</span>}
+                </div>
+                <span style={{ fontSize:11, color:it.done?"#94a3b8":"#334155",
+                  textDecoration:it.done?"line-through":"none", flex:1, lineHeight:1.4 }}>{it.text}</span>
+                <button onClick={()=>removeItem(cl.id, it.id)}
+                  style={{ background:"none", border:"none", cursor:"pointer", fontSize:11,
+                    color:"#d1d5db", padding:0, opacity:0.6 }}
+                  title="Remover item">✕</button>
+              </div>
+            ))}
+
+            {/* Adicionar item */}
+            {addingItem===cl.id ? (
+              <div style={{ marginTop:6 }}>
+                <input autoFocus value={newItemText[cl.id]||""} placeholder="Item do checklist..."
+                  onChange={e=>setNewItemText(prev=>({...prev,[cl.id]:e.target.value}))}
+                  onKeyDown={e=>{ if(e.key==="Enter") addItem(cl.id); if(e.key==="Escape") setAddingItem(null); }}
+                  style={{ width:"100%", padding:"4px 8px", borderRadius:5, border:"1px solid #bfdbfe",
+                    fontSize:11, boxSizing:"border-box", marginBottom:4 }} />
+                <div style={{ display:"flex", gap:4 }}>
+                  <button onClick={()=>addItem(cl.id)} style={{ padding:"4px 10px", borderRadius:5, border:"none",
+                    background:"#1e3a8a", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}>Salvar</button>
+                  <button onClick={()=>setAddingItem(null)} style={{ padding:"4px 8px", borderRadius:5,
+                    border:"1px solid #e2e8f0", background:"#fff", fontSize:11, cursor:"pointer" }}>✕</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={()=>setAddingItem(cl.id)} style={{ marginTop:4, display:"flex", alignItems:"center",
+                gap:4, padding:"3px 8px", borderRadius:5, border:"1px dashed #cbd5e1",
+                background:"none", color:"#94a3b8", fontSize:10, fontWeight:600, cursor:"pointer" }}>
+                + Adicionar item
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -497,7 +574,7 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
   const [classifyMeeting, setClassify]    = useState(null);
   const [renameMeeting, setRename]        = useState(null);
   const [generatingAta, setGeneratingAta] = useState(null);
-  const [reviewModal, setReviewModal]     = useState(null); // { encaminhamentos, meetingId, meetingProject }
+  const [reviewModal, setReviewModal]     = useState(null);
   const fileRef = useRef();
 
   const allProjects = [...new Set(meetings.map(m => m.project).filter(Boolean))].sort();
@@ -518,11 +595,9 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro desconhecido");
       await loadAll();
-      if (data.imported > 0) {
-        setSyncMsg(`✓ ${data.imported} nova(s) transcrição(ões) importada(s) do Drive.`);
-      } else {
-        setSyncMsg("✓ Nenhuma transcrição nova encontrada no Drive.");
-      }
+      setSyncMsg(data.imported > 0
+        ? `✓ ${data.imported} nova(s) transcrição(ões) importada(s) do Drive.`
+        : "✓ Nenhuma transcrição nova encontrada no Drive.");
     } catch (e) {
       setSyncMsg(`⚠ Erro: ${e.message}`);
     } finally {
@@ -539,11 +614,9 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
     const month = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
     const dateStr = `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
     const project = Object.keys(DEFAULT_PROJECT_COLORS).find(p => name.toLowerCase().includes(p.toLowerCase())) ?? "Sem projeto";
-    await addMeeting({
-      project, month, date: dateStr, title: name,
+    await addMeeting({ project, month, date: dateStr, title: name,
       participants: [], status: "transcribed", source: "pdf",
-      transcription: `[PDF importado: ${file.name}]\nConteúdo extraído automaticamente.`,
-    });
+      transcription: `[PDF importado: ${file.name}]\nConteúdo extraído automaticamente.` });
     e.target.value = "";
   }
 
@@ -562,21 +635,14 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Erro na API");
-
       await saveAta(meeting.id, {
-        participantes:   data.participantes   || [],
-        pautas:          data.pautas          || [],
-        decisoes:        data.decisoes        || [],
+        participantes: data.participantes || [],
+        pautas: data.pautas || [],
+        decisoes: data.decisoes || [],
         encaminhamentos: data.encaminhamentos || [],
       });
-
-      // Abre modal de revisão de encaminhamentos antes de ir pro Kanban
       if (data.encaminhamentos && data.encaminhamentos.length > 0) {
-        setReviewModal({
-          encaminhamentos: data.encaminhamentos,
-          meetingId: meeting.id,
-          meetingProject: meeting.project,
-        });
+        setReviewModal({ encaminhamentos: data.encaminhamentos, meetingId: meeting.id, meetingProject: meeting.project });
       } else {
         setSyncMsg(`✓ Ata de "${meeting.title}" gerada! Veja na aba Atas.`);
       }
@@ -588,8 +654,9 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
     }
   }
 
-  const totalFiltered = filtered.length;
-  const plural = totalFiltered !== 1;
+  // ── CORREÇÃO: "reuniões" correto ─────────────────────────────────────────
+  const total = filtered.length;
+  const countLabel = total === 1 ? "1 reunião encontrada" : `${total} reuniões encontradas`;
 
   return (
     <div>
@@ -622,18 +689,14 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
         </select>
       </div>
 
-      {/* Correção do erro de português: "reuniões" no lugar de "reuniãooes" */}
-      <div style={{ fontSize:12, color:"#94a3b8", marginBottom:10 }}>
-        {totalFiltered} reunião{plural?"ões":""} encontrada{plural?"s":""}
-      </div>
+      {/* ── Label corrigido ── */}
+      <div style={{ fontSize:12, color:"#94a3b8", marginBottom:10 }}>{countLabel}</div>
 
       <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
         {filtered.map(m => {
           const expanded = expandedId === m.id;
           const hasAta = m.status === "ata_generated";
           const isGenerating = generatingAta === m.id;
-          const stColor = hasAta ? "#10b981" : "#6366f1";
-          const stLabel = hasAta ? "Ata gerada" : "Transcrição";
           return (
             <div key={m.id} style={{ borderRadius:10, border:`1px solid ${expanded?"#bfdbfe":"#f1f5f9"}`,
               background:expanded?"#f8fbff":"#fff", overflow:"hidden" }}>
@@ -641,7 +704,7 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
                 <div style={{ flex:1, minWidth:0, cursor:"pointer" }} onClick={() => setExpanded(expanded ? null : m.id)}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3, flexWrap:"wrap" }}>
                     <ProjectBadge project={m.project} />
-                    <span style={{ fontSize:11, fontWeight:700, color:stColor }}>● {stLabel}</span>
+                    <span style={{ fontSize:11, fontWeight:700, color:hasAta?"#10b981":"#6366f1" }}>● {hasAta?"Ata gerada":"Transcrição"}</span>
                     {m.source === "pdf" && <span style={{ fontSize:10, background:"#fef3c7", color:"#d97706", padding:"1px 6px", borderRadius:99, fontWeight:700 }}>PDF</span>}
                     <span style={{ fontSize:11, color:"#94a3b8" }}>{m.date}</span>
                   </div>
@@ -649,24 +712,14 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
                   <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>{(m.participants||[]).join(", ")}</div>
                 </div>
                 <div style={{ display:"flex", gap:6, flexShrink:0, alignItems:"center" }}>
-                  {/* Renomear */}
-                  <button onClick={e => { e.stopPropagation(); setRename(m); }}
-                    title="Renomear transcrição"
+                  <button onClick={e=>{ e.stopPropagation(); setRename(m); }} title="Renomear"
                     style={{ padding:"4px 10px", borderRadius:6, border:"1px solid #e2e8f0",
-                      background:"#fff", color:"#475569", fontSize:11, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
-                    ✏️
-                  </button>
-                  {/* Classificar projeto */}
-                  <button onClick={e => { e.stopPropagation(); setClassify(m); }}
-                    title="Classificar projeto"
+                      background:"#fff", color:"#475569", fontSize:11, fontWeight:600, cursor:"pointer" }}>✏️</button>
+                  <button onClick={e=>{ e.stopPropagation(); setClassify(m); }} title="Classificar projeto"
                     style={{ padding:"4px 10px", borderRadius:6, border:"1px solid #bfdbfe",
-                      background:"#eff6ff", color:"#1e3a8a", fontSize:11, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
-                    🏷 Projeto
-                  </button>
-                  {/* Gerar ata */}
-                  <button onClick={e => { e.stopPropagation(); handleGerarAta(m); }}
-                    disabled={isGenerating || hasAta}
-                    title={hasAta ? "Ata já gerada" : "Gerar ata com Claude"}
+                      background:"#eff6ff", color:"#1e3a8a", fontSize:11, fontWeight:700, cursor:"pointer" }}>🏷 Projeto</button>
+                  <button onClick={e=>{ e.stopPropagation(); handleGerarAta(m); }}
+                    disabled={isGenerating||hasAta}
                     style={{ padding:"4px 10px", borderRadius:6,
                       border:`1px solid ${hasAta?"#bbf7d0":isGenerating?"#e2e8f0":"#a5f3fc"}`,
                       background:hasAta?"#f0fdf4":isGenerating?"#f8fafc":"#ecfeff",
@@ -675,69 +728,34 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
                       display:"flex", alignItems:"center", gap:4, whiteSpace:"nowrap" }}>
                     {isGenerating ? <><Spinner size={10}/> Gerando...</> : hasAta ? "✓ Ata ok" : "✨ Gerar Ata"}
                   </button>
-                  <button onClick={e => { e.stopPropagation(); setConfirmDel(m.id); }}
+                  <button onClick={e=>{ e.stopPropagation(); setConfirmDel(m.id); }}
                     style={{ padding:"4px 10px", borderRadius:6, border:"1px solid #fca5a5",
-                      background:"#fff", color:"#ef4444", fontSize:11, fontWeight:700, cursor:"pointer" }}>
-                    🗑
-                  </button>
-                  <span onClick={() => setExpanded(expanded ? null : m.id)}
-                    style={{ fontSize:18, color:"#94a3b8", paddingTop:2, cursor:"pointer" }}>{expanded?"↑":"↓"}</span>
+                      background:"#fff", color:"#ef4444", fontSize:11, fontWeight:700, cursor:"pointer" }}>🗑</button>
+                  <span onClick={() => setExpanded(expanded?null:m.id)} style={{ fontSize:18, color:"#94a3b8", paddingTop:2, cursor:"pointer" }}>{expanded?"↑":"↓"}</span>
                 </div>
               </div>
               {expanded && (
                 <pre style={{ margin:0, padding:"12px 14px", background:"#f1f5f9", fontSize:12,
-                  lineHeight:1.7, color:"#475569", whiteSpace:"pre-wrap", wordBreak:"break-word",
-                  borderTop:"1px solid #e2e8f0" }}>
+                  lineHeight:1.7, color:"#475569", whiteSpace:"pre-wrap", wordBreak:"break-word", borderTop:"1px solid #e2e8f0" }}>
                   {m.transcription || "Sem transcrição."}
                 </pre>
               )}
             </div>
           );
         })}
-        {filtered.length === 0 && (
-          <div style={{ textAlign:"center", padding:48, color:"#94a3b8" }}>Nenhuma transcrição encontrada.</div>
-        )}
+        {filtered.length===0 && <div style={{ textAlign:"center", padding:48, color:"#94a3b8" }}>Nenhuma transcrição encontrada.</div>}
       </div>
 
-      {confirmDel && (
-        <ConfirmModal
-          message="Apagar esta transcrição? Esta ação não pode ser desfeita."
-          onConfirm={() => { deleteMeeting(confirmDel); setConfirmDel(null); }}
-          onCancel={() => setConfirmDel(null)}
-        />
-      )}
-
-      {classifyMeeting && (
-        <ClassifyProjectModal
-          meeting={classifyMeeting}
-          allProjects={allProjects}
-          onSave={(id, project) => updateMeeting(id, { project })}
-          onClose={() => setClassify(null)}
-        />
-      )}
-
-      {renameMeeting && (
-        <RenameModal
-          meeting={renameMeeting}
-          onSave={(id, title) => updateMeeting(id, { title })}
-          onClose={() => setRename(null)}
-        />
-      )}
-
-      {reviewModal && (
-        <ActionReviewModal
-          encaminhamentos={reviewModal.encaminhamentos}
-          meetingId={reviewModal.meetingId}
-          meetingProject={reviewModal.meetingProject}
-          meetings={meetings}
-          addActions={addActions}
-          onClose={() => {
-            setReviewModal(null);
-            setSyncMsg("✓ Ata salva! Encaminhamentos enviados para o Kanban.");
-            setTimeout(() => setSyncMsg(null), 5000);
-          }}
-        />
-      )}
+      {confirmDel && <ConfirmModal message="Apagar esta transcrição? Esta ação não pode ser desfeita."
+        onConfirm={()=>{ deleteMeeting(confirmDel); setConfirmDel(null); }} onCancel={()=>setConfirmDel(null)} />}
+      {classifyMeeting && <ClassifyProjectModal meeting={classifyMeeting} allProjects={allProjects}
+        onSave={(id,project)=>updateMeeting(id,{project})} onClose={()=>setClassify(null)} />}
+      {renameMeeting && <RenameModal meeting={renameMeeting}
+        onSave={(id,title)=>updateMeeting(id,{title})} onClose={()=>setRename(null)} />}
+      {reviewModal && <ActionReviewModal encaminhamentos={reviewModal.encaminhamentos}
+        meetingId={reviewModal.meetingId} meetingProject={reviewModal.meetingProject}
+        meetings={meetings} addActions={addActions}
+        onClose={()=>{ setReviewModal(null); setSyncMsg("✓ Ata salva! Encaminhamentos enviados para o Kanban."); setTimeout(()=>setSyncMsg(null),5000); }} />}
     </div>
   );
 }
@@ -749,16 +767,16 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
   const [selectedId, setSelected] = useState(null);
   const [editing, setEditing]     = useState(false);
   const [localAta, setLocalAta]   = useState(null);
-  const [saving, setSaving]         = useState(false);
+  const [saving, setSaving]       = useState(false);
   const [confirmDelAta, setConfirmDelAta] = useState(null);
-  const [reviewModal, setReviewModal] = useState(null);
+  const [reviewModal, setReviewModal]     = useState(null);
 
   const withAta = meetings.filter(m => m.status === "ata_generated");
   const projects = ["Todos", ...new Set(withAta.map(m => m.project))];
   const months   = ["Todos", ...new Set(withAta.map(m => m.month).filter(Boolean))];
   const filtered = withAta.filter(m => {
-    const p = filterProject === "Todos" || m.project === filterProject;
-    const mo = filterMonth  === "Todos" || m.month   === filterMonth;
+    const p  = filterProject === "Todos" || m.project === filterProject;
+    const mo = filterMonth   === "Todos" || m.month   === filterMonth;
     return p && mo;
   });
 
@@ -766,23 +784,17 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
   const ata = selectedId ? atas[selectedId] : null;
 
   function selectMeeting(id) {
-    setSelected(id);
-    setEditing(false);
+    setSelected(id); setEditing(false);
     const a = atas[id];
-    if (a) setLocalAta({ participantes: a.participantes, pautas: a.pautas, decisoes: a.decisoes, encaminhamentos: a.encaminhamentos });
+    if (a) setLocalAta({ participantes:a.participantes, pautas:a.pautas, decisoes:a.decisoes, encaminhamentos:a.encaminhamentos });
   }
 
   function startEdit() {
-    setLocalAta({ participantes: ata.participantes, pautas: ata.pautas, decisoes: ata.decisoes, encaminhamentos: ata.encaminhamentos });
+    setLocalAta({ participantes:ata.participantes, pautas:ata.pautas, decisoes:ata.decisoes, encaminhamentos:ata.encaminhamentos });
     setEditing(true);
   }
 
-  async function handleSave() {
-    setSaving(true);
-    await saveAta(selectedId, localAta);
-    setSaving(false);
-    setEditing(false);
-  }
+  async function handleSave() { setSaving(true); await saveAta(selectedId, localAta); setSaving(false); setEditing(false); }
 
   function updateCell(section, ri, ci, val) {
     setLocalAta(prev => {
@@ -793,17 +805,11 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
   }
 
   function addRow(section) {
-    const EMPTY = {
-      participantes: ["","",""],
-      pautas: ["","",""],
-      decisoes: ["","",""],
-      encaminhamentos: ["","","",""],
-    };
+    const EMPTY = { participantes:["","",""], pautas:["","",""], decisoes:["","",""], encaminhamentos:["","","",""] };
     setLocalAta(prev => {
       const copy = JSON.parse(JSON.stringify(prev));
-      const newRow = [...EMPTY[section]];
-      newRow[0] = String((copy[section]?.length || 0) + 1);
-      copy[section] = [...(copy[section] || []), newRow];
+      const newRow = [...EMPTY[section]]; newRow[0] = String((copy[section]?.length||0)+1);
+      copy[section] = [...(copy[section]||[]), newRow];
       return copy;
     });
   }
@@ -811,14 +817,12 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
   function removeRow(section, ri) {
     setLocalAta(prev => {
       const copy = JSON.parse(JSON.stringify(prev));
-      copy[section] = copy[section].filter((_,i) => i !== ri)
-        .map((row, i) => { const r = [...row]; r[0] = String(i+1); return r; });
+      copy[section] = copy[section].filter((_,i)=>i!==ri).map((row,i)=>{ const r=[...row]; r[0]=String(i+1); return r; });
       return copy;
     });
   }
 
-  const displayAta = editing ? localAta : (ata ? { participantes: ata.participantes, pautas: ata.pautas, decisoes: ata.decisoes, encaminhamentos: ata.encaminhamentos } : null);
-
+  const displayAta = editing ? localAta : (ata ? { participantes:ata.participantes, pautas:ata.pautas, decisoes:ata.decisoes, encaminhamentos:ata.encaminhamentos } : null);
   const SECTIONS = [
     { key:"participantes",   title:"PARTICIPANTES",   columns:["#","Nome","Empresa"],            widths:[0.5,2,2] },
     { key:"pautas",          title:"PAUTAS",          columns:["#","Pauta","Observações"],       widths:[0.5,2,2] },
@@ -828,35 +832,31 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
 
   return (
     <div style={{ display:"flex", gap:20 }}>
-      {/* Sidebar */}
       <div style={{ width:240, flexShrink:0 }}>
         <div style={{ marginBottom:10 }}>
-          <select value={filterProject} onChange={e => setFP(e.target.value)}
+          <select value={filterProject} onChange={e=>setFP(e.target.value)}
             style={{ width:"100%", padding:"7px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, marginBottom:6, background:"#fff" }}>
-            {projects.map(p => <option key={p} value={p}>{p==="Todos"?"Todos os projetos":p}</option>)}
+            {projects.map(p=><option key={p} value={p}>{p==="Todos"?"Todos os projetos":p}</option>)}
           </select>
-          <select value={filterMonth} onChange={e => setFM(e.target.value)}
+          <select value={filterMonth} onChange={e=>setFM(e.target.value)}
             style={{ width:"100%", padding:"7px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
-            {months.map(m => <option key={m} value={m}>{m==="Todos"?"Todos os meses":(MONTH_LABELS[m]||m)}</option>)}
+            {months.map(m=><option key={m} value={m}>{m==="Todos"?"Todos os meses":(MONTH_LABELS[m]||m)}</option>)}
           </select>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-          {filtered.map(m => (
-            <button key={m.id} onClick={() => selectMeeting(m.id)}
+          {filtered.map(m=>(
+            <button key={m.id} onClick={()=>selectMeeting(m.id)}
               style={{ textAlign:"left", padding:"9px 11px", borderRadius:8,
                 border:`1px solid ${selectedId===m.id?"#1e3a8a":"#f1f5f9"}`,
-                background:selectedId===m.id?"#eff6ff":"#fff",
-                cursor:"pointer" }}>
+                background:selectedId===m.id?"#eff6ff":"#fff", cursor:"pointer" }}>
               <div style={{ marginBottom:3 }}><ProjectBadge project={m.project} small /></div>
               <div style={{ fontSize:11, fontWeight:600, color:"#1e293b", lineHeight:1.3 }}>{m.title.slice(0,40)}</div>
               <div style={{ fontSize:10, color:"#94a3b8", marginTop:2 }}>{m.date}</div>
             </button>
           ))}
-          {filtered.length === 0 && <div style={{ fontSize:12, color:"#94a3b8", padding:16, textAlign:"center" }}>Nenhuma ata.</div>}
+          {filtered.length===0 && <div style={{ fontSize:12, color:"#94a3b8", padding:16, textAlign:"center" }}>Nenhuma ata.</div>}
         </div>
       </div>
-
-      {/* Conteúdo */}
       <div style={{ flex:1, minWidth:0 }}>
         {!meeting ? (
           <div style={{ textAlign:"center", padding:64, color:"#94a3b8" }}>Selecione uma ata na lista.</div>
@@ -868,9 +868,8 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
                 <div style={{ fontSize:11, color:"#94a3b8" }}>{meeting.date} · <ProjectBadge project={meeting.project} small /></div>
               </div>
               <div style={{ display:"flex", gap:6 }}>
-                {/* Botão enviar encaminhamentos pro Kanban */}
-                {ata && ata.encaminhamentos && ata.encaminhamentos.length > 0 && (
-                  <button onClick={() => setReviewModal({ encaminhamentos: ata.encaminhamentos, meetingId: meeting.id, meetingProject: meeting.project })}
+                {ata && ata.encaminhamentos && ata.encaminhamentos.length>0 && (
+                  <button onClick={()=>setReviewModal({ encaminhamentos:ata.encaminhamentos, meetingId:meeting.id, meetingProject:meeting.project })}
                     style={{ padding:"6px 14px", borderRadius:8, border:"1px solid #a5f3fc",
                       background:"#ecfeff", color:"#0891b2", fontSize:12, fontWeight:700, cursor:"pointer" }}>
                     ✅ Enviar Encaminhamentos
@@ -878,42 +877,39 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
                 )}
                 {!editing ? (
                   <button onClick={startEdit} style={{ padding:"6px 14px", borderRadius:8,
-                    border:"1px solid #bfdbfe", background:"#eff6ff", color:"#1e3a8a",
-                    fontSize:12, fontWeight:700, cursor:"pointer" }}>✏️ Editar</button>
+                    border:"1px solid #bfdbfe", background:"#eff6ff", color:"#1e3a8a", fontSize:12, fontWeight:700, cursor:"pointer" }}>✏️ Editar</button>
                 ) : (
                   <>
-                    <button onClick={handleSave} disabled={saving} style={{ padding:"6px 14px", borderRadius:8,
-                      border:"none", background:"#10b981", color:"#fff", fontSize:12, fontWeight:700,
-                      cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>
-                      {saving ? <><Spinner size={12}/> Salvando...</> : "💾 Salvar"}
+                    <button onClick={handleSave} disabled={saving} style={{ padding:"6px 14px", borderRadius:8, border:"none",
+                      background:"#10b981", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>
+                      {saving?<><Spinner size={12}/> Salvando...</>:"💾 Salvar"}
                     </button>
-                    <button onClick={() => setEditing(false)} style={{ padding:"6px 14px", borderRadius:8,
+                    <button onClick={()=>setEditing(false)} style={{ padding:"6px 14px", borderRadius:8,
                       border:"1px solid #e2e8f0", background:"#fff", color:"#475569", fontSize:12, cursor:"pointer" }}>Cancelar</button>
                   </>
                 )}
-                <button onClick={() => setConfirmDelAta(selectedId)}
+                <button onClick={()=>setConfirmDelAta(selectedId)}
                   style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #fca5a5",
                     background:"#fff", color:"#ef4444", fontSize:12, cursor:"pointer" }}>🗑</button>
               </div>
             </div>
-
-            {displayAta && SECTIONS.map(({ key: section, title, columns, widths }) =>
+            {displayAta && SECTIONS.map(({key:section,title,columns,widths}) =>
               editing ? (
                 <div key={section} style={{ marginBottom:18, border:"1px solid #bfdbfe", borderRadius:8, overflow:"hidden" }}>
                   <div style={{ background:"#1f3864", padding:"7px 12px" }}>
                     <span style={{ color:"#fff", fontWeight:700, fontSize:12 }}>{title}</span>
                   </div>
-                  {(displayAta[section]||[]).map((row, ri) => (
+                  {(displayAta[section]||[]).map((row,ri)=>(
                     <div key={ri} style={{ display:"flex", background:ri%2===1?"#e8f0fe":"#fff", borderBottom:"1px solid #e2e8f0" }}>
-                      {row.map((cell, ci) => (
+                      {row.map((cell,ci)=>(
                         <div key={ci} style={{ flex:widths[ci], padding:"4px 6px", borderRight:ci<row.length-1?"1px solid #e2e8f0":"none" }}>
-                          <input value={cell} onChange={e => updateCell(section, ri, ci, e.target.value)}
-                            style={{ width:"100%", border:"none", background:"transparent", fontSize:11, padding:"2px 4px",
-                              outline:"none", color:"#334155", boxSizing:"border-box" }} />
+                          <input value={cell} onChange={e=>updateCell(section,ri,ci,e.target.value)}
+                            style={{ width:"100%", border:"none", background:"transparent", fontSize:11,
+                              padding:"2px 4px", outline:"none", color:"#334155", boxSizing:"border-box" }} />
                         </div>
                       ))}
                       <div style={{ padding:"0 6px", flexShrink:0 }}>
-                        <button onClick={() => removeRow(section, ri)} title="Remover linha"
+                        <button onClick={()=>removeRow(section,ri)}
                           style={{ width:20, height:20, borderRadius:"50%", border:"none", background:"#fca5a5",
                             color:"#ef4444", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center",
                             justifyContent:"center", fontWeight:700, lineHeight:1 }}>−</button>
@@ -921,12 +917,9 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
                     </div>
                   ))}
                   <div style={{ padding:"6px 10px", borderTop:"1px dashed #bfdbfe" }}>
-                    <button onClick={() => addRow(section)}
-                      style={{ display:"flex", alignItems:"center", gap:4, padding:"4px 10px", borderRadius:6,
-                        border:"1px dashed #93c5fd", background:"#f0f7ff", color:"#1e3a8a",
-                        fontSize:11, fontWeight:700, cursor:"pointer" }}>
-                      + Adicionar linha
-                    </button>
+                    <button onClick={()=>addRow(section)} style={{ display:"flex", alignItems:"center", gap:4,
+                      padding:"4px 10px", borderRadius:6, border:"1px dashed #93c5fd", background:"#f0f7ff",
+                      color:"#1e3a8a", fontSize:11, fontWeight:700, cursor:"pointer" }}>+ Adicionar linha</button>
                   </div>
                 </div>
               ) : (
@@ -936,25 +929,13 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
           </div>
         )}
       </div>
-
-      {confirmDelAta && (
-        <ConfirmModal
-          message="Apagar esta ata? A reunião voltará ao status de transcrição. Esta ação não pode ser desfeita."
-          onConfirm={() => { deleteAta(confirmDelAta); setConfirmDelAta(null); setSelected(null); }}
-          onCancel={() => setConfirmDelAta(null)}
-        />
-      )}
-
-      {reviewModal && (
-        <ActionReviewModal
-          encaminhamentos={reviewModal.encaminhamentos}
-          meetingId={reviewModal.meetingId}
-          meetingProject={reviewModal.meetingProject}
-          meetings={meetings}
-          addActions={addActions}
-          onClose={() => setReviewModal(null)}
-        />
-      )}
+      {confirmDelAta && <ConfirmModal
+        message="Apagar esta ata? A reunião voltará ao status de transcrição."
+        onConfirm={()=>{ deleteAta(confirmDelAta); setConfirmDelAta(null); setSelected(null); }}
+        onCancel={()=>setConfirmDelAta(null)} />}
+      {reviewModal && <ActionReviewModal encaminhamentos={reviewModal.encaminhamentos}
+        meetingId={reviewModal.meetingId} meetingProject={reviewModal.meetingProject}
+        meetings={meetings} addActions={addActions} onClose={()=>setReviewModal(null)} />}
     </div>
   );
 }
@@ -972,101 +953,96 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
   const [now, setNow]               = useState(Date.now());
   const [filterProject, setFP]      = useState("Todos");
   const [newProject, setNewProject] = useState("");
-  const [showNewProj, setShowNewProj] = useState(false);
+  const [showNewProj, setShowNewProj]         = useState(false);
+  // Checklists: { [actionId]: [{ id, title, items: [] }] }
+  const [checklists, setChecklists] = useState({});
+  const [addingChecklist, setAddingChecklist] = useState(null); // actionId
+  const [newClTitle, setNewClTitle] = useState("");
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
 
-  // Todos os projetos disponíveis (de meetings e de action_items)
   const allProjects = [...new Set([
     ...meetings.map(m => m.project).filter(Boolean),
     ...actions.map(a => a.project).filter(Boolean),
     ...Object.keys(DEFAULT_PROJECT_COLORS),
   ])].sort();
 
-  // Filtro por pessoa + projeto
   const visible = actions.filter(a => {
     const byMe = !onlyMe || a.responsible === ME;
-    const byProject = filterProject === "Todos" || a.project === filterProject || 
-      (!a.project && meetings.find(m => m.id === a.meeting_id)?.project === filterProject);
+    const byProject = filterProject==="Todos" || a.project===filterProject ||
+      (!a.project && meetings.find(m=>m.id===a.meeting_id)?.project===filterProject);
     return byMe && byProject;
   });
 
   function colItems(colId) {
-    const items = visible.filter(a => a.status === colId);
-    if (colId !== "done") return items;
+    const items = visible.filter(a => a.status===colId);
+    if (colId!=="done") return items;
     if (showDone) return items;
-    return items.filter(a => !a.done_at || (now - a.done_at) < DONE_HIDE_MS);
+    return items.filter(a => !a.done_at||(now-a.done_at)<DONE_HIDE_MS);
   }
 
   const hiddenDoneCount = visible.filter(a =>
-    a.status === "done" && a.done_at && (now - a.done_at) >= DONE_HIDE_MS
+    a.status==="done" && a.done_at && (now-a.done_at)>=DONE_HIDE_MS
   ).length;
 
   function startEdit(a) {
     setEditingId(a.id);
-    setEditForm({ description: a.description, responsible: a.responsible, due_date: a.due_date, project: a.project || "" });
+    setEditForm({ description:a.description, responsible:a.responsible, due_date:a.due_date, project:a.project||"" });
   }
 
-  async function saveEdit(id) {
-    await updateAction(id, editForm);
-    setEditingId(null);
-  }
+  async function saveEdit(id) { await updateAction(id, editForm); setEditingId(null); }
 
   async function handleAdd(colId) {
     if (!newForm.description.trim()) return;
-    const proj = showNewProj && newProject.trim() ? newProject.trim() : (newForm.project || "Sem projeto");
-    const meetingId = newForm.meeting_id ? parseInt(newForm.meeting_id) : (meetings[0]?.id ?? null);
-    await addAction({
-      meeting_id: meetingId,
-      description: newForm.description,
-      responsible: newForm.responsible || ME,
-      due_date: newForm.due_date || "A Definir",
-      status: colId,
-      project: proj,
-    });
+    const proj = showNewProj && newProject.trim() ? newProject.trim() : (newForm.project||"Sem projeto");
+    const meetingId = newForm.meeting_id ? parseInt(newForm.meeting_id) : (meetings[0]?.id??null);
+    await addAction({ meeting_id:meetingId, description:newForm.description,
+      responsible:newForm.responsible||ME, due_date:newForm.due_date||"A Definir",
+      status:colId, project:proj });
     setNewForm({ description:"", responsible:"", due_date:"", meeting_id:"", project:"" });
-    setNewProject("");
-    setShowNewProj(false);
-    setAddingCol(null);
+    setNewProject(""); setShowNewProj(false); setAddingCol(null);
+  }
+
+  function addChecklist(actionId) {
+    const title = newClTitle.trim() || "Checklist";
+    const cl = { id: Date.now()+"_cl", title, items: [] };
+    setChecklists(prev => ({ ...prev, [actionId]: [...(prev[actionId]||[]), cl] }));
+    setAddingChecklist(null); setNewClTitle("");
   }
 
   return (
     <div>
-      {/* Filtros */}
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, flexWrap:"wrap" }}>
-        <Toggle checked={onlyMe} onChange={() => setOnlyMe(!onlyMe)} label={`Apenas meus (${ME.split(" ")[0]})`} />
+        <Toggle checked={onlyMe} onChange={()=>setOnlyMe(!onlyMe)} label={`Apenas meus (${ME.split(" ")[0]})`} />
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <span style={{ fontSize:12, fontWeight:600, color:"#64748b" }}>Projeto:</span>
-          <select value={filterProject} onChange={e => setFP(e.target.value)}
+          <select value={filterProject} onChange={e=>setFP(e.target.value)}
             style={{ padding:"5px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
             <option value="Todos">Todos os projetos</option>
-            {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
+            {allProjects.map(p=><option key={p} value={p}>{p}</option>)}
           </select>
         </div>
-        {hiddenDoneCount > 0 && (
-          <button onClick={() => setShowDone(!showDone)} style={{
-            padding:"5px 12px", borderRadius:99, border:"1px solid #e2e8f0",
-            background:showDone?"#f0fdf4":"#fff", color:showDone?"#16a34a":"#64748b",
-            fontSize:12, fontWeight:600, cursor:"pointer" }}>
-            {showDone ? `↑ Ocultar concluídos (${hiddenDoneCount})` : `↓ Ver todos concluídos (${hiddenDoneCount} ocultos)`}
+        {hiddenDoneCount>0 && (
+          <button onClick={()=>setShowDone(!showDone)} style={{ padding:"5px 12px", borderRadius:99,
+            border:"1px solid #e2e8f0", background:showDone?"#f0fdf4":"#fff",
+            color:showDone?"#16a34a":"#64748b", fontSize:12, fontWeight:600, cursor:"pointer" }}>
+            {showDone?`↑ Ocultar concluídos (${hiddenDoneCount})`:`↓ Ver todos concluídos (${hiddenDoneCount} ocultos)`}
           </button>
         )}
       </div>
 
-      {/* Kanban */}
       <div style={{ display:"flex", gap:10, overflowX:"auto", paddingBottom:12, alignItems:"flex-start" }}>
         {KANBAN_COLS.map(col => {
           const items = colItems(col.id);
           return (
             <div key={col.id}
-              onDragOver={e => e.preventDefault()}
-              onDrop={() => { if (dragging !== null) { updateAction(dragging, { status: col.id }); setDragging(null); } }}
-              style={{ minWidth:230, flex:"0 0 230px", background:col.bg, borderRadius:12,
+              onDragOver={e=>e.preventDefault()}
+              onDrop={()=>{ if(dragging!==null){ updateAction(dragging,{status:col.id}); setDragging(null); } }}
+              style={{ minWidth:240, flex:"0 0 240px", background:col.bg, borderRadius:12,
                 border:`1px solid ${col.color}25`, overflow:"hidden" }}>
-              {/* Header */}
               <div style={{ padding:"10px 12px", borderBottom:`2px solid ${col.color}`,
                 display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -1074,69 +1050,63 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                   <span style={{ fontSize:11, fontWeight:800, color:col.color, textTransform:"uppercase", letterSpacing:0.3 }}>{col.label}</span>
                   <span style={{ fontSize:11, background:`${col.color}22`, color:col.color, borderRadius:99, padding:"1px 7px", fontWeight:700 }}>{items.length}</span>
                 </div>
-                {col.id !== "done" && (
-                  <button onClick={() => setAddingCol(addingCol===col.id?null:col.id)}
+                {col.id!=="done" && (
+                  <button onClick={()=>setAddingCol(addingCol===col.id?null:col.id)}
                     style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, color:col.color, lineHeight:1 }}>+</button>
                 )}
               </div>
 
-              {/* Novo card form */}
-              {addingCol === col.id && (
+              {addingCol===col.id && (
                 <div style={{ padding:"8px 10px", background:"#fff", borderBottom:`1px solid ${col.color}25` }}>
                   <input placeholder="Descrição..." value={newForm.description}
-                    onChange={e => setNewForm(f=>({...f,description:e.target.value}))}
+                    onChange={e=>setNewForm(f=>({...f,description:e.target.value}))}
                     style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
                   <input placeholder="Responsável" value={newForm.responsible}
-                    onChange={e => setNewForm(f=>({...f,responsible:e.target.value}))}
+                    onChange={e=>setNewForm(f=>({...f,responsible:e.target.value}))}
                     style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
                   <input placeholder="Prazo (dd/mm/aaaa)" value={newForm.due_date}
-                    onChange={e => setNewForm(f=>({...f,due_date:e.target.value}))}
+                    onChange={e=>setNewForm(f=>({...f,due_date:e.target.value}))}
                     style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
-                  {/* Seletor de projeto */}
-                  <select value={showNewProj ? "__new__" : newForm.project}
-                    onChange={e => {
-                      if (e.target.value === "__new__") { setShowNewProj(true); }
-                      else { setShowNewProj(false); setNewForm(f=>({...f, project: e.target.value})); }
-                    }}
+                  <select value={showNewProj?"__new__":newForm.project}
+                    onChange={e=>{ if(e.target.value==="__new__"){ setShowNewProj(true); }
+                      else { setShowNewProj(false); setNewForm(f=>({...f,project:e.target.value})); } }}
                     style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4, background:"#fff" }}>
                     <option value="">Sem projeto</option>
-                    {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
+                    {allProjects.map(p=><option key={p} value={p}>{p}</option>)}
                     <option value="__new__">+ Criar novo projeto...</option>
                   </select>
                   {showNewProj && (
                     <input placeholder="Nome do novo projeto" value={newProject}
-                      onChange={e => setNewProject(e.target.value)}
+                      onChange={e=>setNewProject(e.target.value)}
                       style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #bfdbfe", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
                   )}
-                  <select value={newForm.meeting_id} onChange={e => setNewForm(f=>({...f,meeting_id:e.target.value}))}
+                  <select value={newForm.meeting_id} onChange={e=>setNewForm(f=>({...f,meeting_id:e.target.value}))}
                     style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:6, background:"#fff" }}>
                     <option value="">Vincular reunião (opcional)</option>
-                    {meetings.map(m => <option key={m.id} value={m.id}>{m.project} — {m.title.slice(0,30)}</option>)}
+                    {meetings.map(m=><option key={m.id} value={m.id}>{m.project} — {m.title.slice(0,30)}</option>)}
                   </select>
                   <div style={{ display:"flex", gap:5 }}>
-                    <button onClick={() => handleAdd(col.id)} style={{ flex:1, padding:"5px", borderRadius:6, border:"none",
+                    <button onClick={()=>handleAdd(col.id)} style={{ flex:1, padding:"5px", borderRadius:6, border:"none",
                       background:col.color, color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}>Adicionar</button>
-                    <button onClick={() => { setAddingCol(null); setShowNewProj(false); setNewProject(""); }} style={{ padding:"5px 8px", borderRadius:6,
+                    <button onClick={()=>{ setAddingCol(null); setShowNewProj(false); setNewProject(""); }} style={{ padding:"5px 8px", borderRadius:6,
                       border:"1px solid #e2e8f0", background:"#fff", fontSize:11, cursor:"pointer" }}>✕</button>
                   </div>
                 </div>
               )}
 
-              {/* Cards */}
               <div style={{ padding:"8px", display:"flex", flexDirection:"column", gap:6, minHeight:80 }}>
                 {items.map(a => {
-                  const m = meetings.find(mt => mt.id === a.meeting_id);
+                  const m = meetings.find(mt => mt.id===a.meeting_id);
                   const cardProject = a.project || m?.project;
-                  const isMe = a.responsible === ME;
-                  const isEditing = editingId === a.id;
+                  const isMe = a.responsible===ME;
+                  const isEditing = editingId===a.id;
+                  const cardChecklists = checklists[a.id] || [];
+
                   return (
-                    <div key={a.id} draggable
-                      onDragStart={() => setDragging(a.id)}
-                      onDragEnd={() => setDragging(null)}
+                    <div key={a.id} draggable onDragStart={()=>setDragging(a.id)} onDragEnd={()=>setDragging(null)}
                       style={{ background:"#fff", borderRadius:8, padding:"10px 10px 8px",
                         boxShadow:"0 1px 4px rgba(0,0,0,.07)", border:"1px solid #f1f5f9",
-                        cursor:"grab", borderLeft:`3px solid ${col.color}`,
-                        opacity:dragging===a.id?0.5:1 }}>
+                        cursor:"grab", borderLeft:`3px solid ${col.color}`, opacity:dragging===a.id?0.5:1 }}>
                       {isEditing ? (
                         <div>
                           <input value={editForm.description} onChange={e=>setEditForm(f=>({...f,description:e.target.value}))}
@@ -1145,16 +1115,15 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                             style={{ width:"100%", padding:"4px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
                           <input value={editForm.due_date} onChange={e=>setEditForm(f=>({...f,due_date:e.target.value}))}
                             style={{ width:"100%", padding:"4px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
-                          <select value={editForm.project || ""}
-                            onChange={e => setEditForm(f=>({...f, project: e.target.value}))}
+                          <select value={editForm.project||""} onChange={e=>setEditForm(f=>({...f,project:e.target.value}))}
                             style={{ width:"100%", padding:"4px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, marginBottom:6, background:"#fff" }}>
                             <option value="">Sem projeto</option>
-                            {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
+                            {allProjects.map(p=><option key={p} value={p}>{p}</option>)}
                           </select>
                           <div style={{ display:"flex", gap:4 }}>
-                            <button onClick={() => saveEdit(a.id)} style={{ flex:1, padding:"4px", borderRadius:5, border:"none",
+                            <button onClick={()=>saveEdit(a.id)} style={{ flex:1, padding:"4px", borderRadius:5, border:"none",
                               background:"#10b981", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}>Salvar</button>
-                            <button onClick={() => setEditingId(null)} style={{ padding:"4px 7px", borderRadius:5,
+                            <button onClick={()=>setEditingId(null)} style={{ padding:"4px 7px", borderRadius:5,
                               border:"1px solid #e2e8f0", background:"#fff", fontSize:11, cursor:"pointer" }}>✕</button>
                           </div>
                         </div>
@@ -1163,16 +1132,45 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                           <div style={{ fontSize:12, fontWeight:600, color:"#1e293b", lineHeight:1.4, marginBottom:6 }}>{a.description}</div>
                           <div style={{ display:"flex", flexDirection:"column", gap:2, marginBottom:6 }}>
                             {cardProject && <span style={{ marginBottom:2 }}><ProjectBadge project={cardProject} small /></span>}
-                            <span style={{ fontSize:10, color:isMe?"#1e3a8a":"#64748b", fontWeight:isMe?700:400 }}>
-                              👤 {a.responsible}{isMe?" (eu)":""}
-                            </span>
+                            <span style={{ fontSize:10, color:isMe?"#1e3a8a":"#64748b", fontWeight:isMe?700:400 }}>👤 {a.responsible}{isMe?" (eu)":""}</span>
                             <span style={{ fontSize:10, color:"#94a3b8" }}>📅 {a.due_date}</span>
                           </div>
-                          {/* Botões de mover entre colunas removidos conforme solicitado */}
-                          <div style={{ display:"flex", gap:4, justifyContent:"flex-end" }}>
-                            <button onClick={() => startEdit(a)} style={{ fontSize:10, padding:"2px 7px", borderRadius:5,
+
+                          {/* ── CHECKLISTS ── */}
+                          <Checklist
+                            cardId={a.id}
+                            checklists={cardChecklists}
+                            onUpdate={updated => setChecklists(prev => ({...prev, [a.id]: updated}))}
+                          />
+
+                          {/* Botão adicionar checklist */}
+                          {addingChecklist===a.id ? (
+                            <div style={{ marginTop:6 }}>
+                              <input autoFocus value={newClTitle} placeholder="Título do checklist..."
+                                onChange={e=>setNewClTitle(e.target.value)}
+                                onKeyDown={e=>{ if(e.key==="Enter") addChecklist(a.id); if(e.key==="Escape") setAddingChecklist(null); }}
+                                style={{ width:"100%", padding:"4px 8px", borderRadius:5, border:"1px solid #bfdbfe",
+                                  fontSize:11, boxSizing:"border-box", marginBottom:4 }} />
+                              <div style={{ display:"flex", gap:4 }}>
+                                <button onClick={()=>addChecklist(a.id)} style={{ padding:"4px 10px", borderRadius:5, border:"none",
+                                  background:"#1e3a8a", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}>Criar</button>
+                                <button onClick={()=>setAddingChecklist(null)} style={{ padding:"4px 8px", borderRadius:5,
+                                  border:"1px solid #e2e8f0", background:"#fff", fontSize:11, cursor:"pointer" }}>✕</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button onClick={()=>{ setAddingChecklist(a.id); setNewClTitle(""); }}
+                              style={{ display:"flex", alignItems:"center", gap:4, marginTop:6, padding:"3px 8px",
+                                borderRadius:5, border:"1px dashed #cbd5e1", background:"none",
+                                color:"#94a3b8", fontSize:10, fontWeight:600, cursor:"pointer" }}>
+                              ☑ Checklist
+                            </button>
+                          )}
+
+                          <div style={{ display:"flex", gap:4, justifyContent:"flex-end", marginTop:6 }}>
+                            <button onClick={()=>startEdit(a)} style={{ fontSize:10, padding:"2px 7px", borderRadius:5,
                               border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", color:"#475569" }}>✏️</button>
-                            <button onClick={() => setConfirmDel(a.id)} style={{ fontSize:10, padding:"2px 7px", borderRadius:5,
+                            <button onClick={()=>setConfirmDel(a.id)} style={{ fontSize:10, padding:"2px 7px", borderRadius:5,
                               border:"1px solid #fca5a5", background:"#fff", cursor:"pointer", color:"#ef4444" }}>🗑</button>
                           </div>
                         </>
@@ -1180,7 +1178,7 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                     </div>
                   );
                 })}
-                {items.length === 0 && (
+                {items.length===0 && (
                   <div style={{ fontSize:11, color:`${col.color}88`, textAlign:"center", padding:"10px 0", fontStyle:"italic" }}>vazio</div>
                 )}
               </div>
@@ -1188,14 +1186,8 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
           );
         })}
       </div>
-
-      {confirmDel && (
-        <ConfirmModal
-          message="Excluir este encaminhamento? Esta ação não pode ser desfeita."
-          onConfirm={() => { deleteAction(confirmDel); setConfirmDel(null); }}
-          onCancel={() => setConfirmDel(null)}
-        />
-      )}
+      {confirmDel && <ConfirmModal message="Excluir este encaminhamento? Esta ação não pode ser desfeita."
+        onConfirm={()=>{ deleteAction(confirmDel); setConfirmDel(null); }} onCancel={()=>setConfirmDel(null)} />}
     </div>
   );
 }
@@ -1203,60 +1195,47 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
 // ─── ABA 4: CONCLUÍDOS ───────────────────────────────────────────────────────
 function CompletedTab({ actions, meetings }) {
   const [filterProject, setFP] = useState("Todos");
-
-  const done = actions.filter(a => a.status === "done");
-
-  // Pegar projeto do action_item diretamente (campo project) ou via meeting
+  const done = actions.filter(a => a.status==="done");
   function getProject(a) {
     if (a.project) return a.project;
-    return meetings.find(m => m.id === a.meeting_id)?.project ?? "Sem projeto";
+    return meetings.find(m=>m.id===a.meeting_id)?.project ?? "Sem projeto";
   }
-
   const projects = ["Todos", ...new Set(done.map(getProject))];
-
   const byProject = {};
   done.forEach(a => {
     const p = getProject(a);
-    if (filterProject !== "Todos" && p !== filterProject) return;
+    if (filterProject!=="Todos" && p!==filterProject) return;
     if (!byProject[p]) byProject[p] = [];
-    const m = meetings.find(mt => mt.id === a.meeting_id);
-    byProject[p].push({ ...a, meetingTitle: m?.title ?? "—" });
+    const m = meetings.find(mt=>mt.id===a.meeting_id);
+    byProject[p].push({...a, meetingTitle:m?.title??"—"});
   });
 
   return (
     <div>
       <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, flexWrap:"wrap" }}>
         <div style={{ fontSize:14, fontWeight:700, color:"#1e293b" }}>Encaminhamentos Concluídos</div>
-        <span style={{ background:"#f0fdf4", color:"#16a34a", fontSize:12, fontWeight:700, padding:"2px 10px", borderRadius:99 }}>
-          {done.length} total
-        </span>
-        <select value={filterProject} onChange={e => setFP(e.target.value)}
+        <span style={{ background:"#f0fdf4", color:"#16a34a", fontSize:12, fontWeight:700, padding:"2px 10px", borderRadius:99 }}>{done.length} total</span>
+        <select value={filterProject} onChange={e=>setFP(e.target.value)}
           style={{ marginLeft:"auto", padding:"6px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
-          {projects.map(p => <option key={p} value={p}>{p === "Todos" ? "Todos os projetos" : p}</option>)}
+          {projects.map(p=><option key={p} value={p}>{p==="Todos"?"Todos os projetos":p}</option>)}
         </select>
       </div>
-
-      {Object.keys(byProject).length === 0 && (
-        <div style={{ textAlign:"center", padding:48, color:"#94a3b8", fontSize:14 }}>Nenhum encaminhamento concluído.</div>
-      )}
-
-      {Object.entries(byProject).map(([project, items]) => (
+      {Object.keys(byProject).length===0 && <div style={{ textAlign:"center", padding:48, color:"#94a3b8", fontSize:14 }}>Nenhum encaminhamento concluído.</div>}
+      {Object.entries(byProject).map(([project,items])=>(
         <div key={project} style={{ marginBottom:24 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, paddingBottom:8, borderBottom:"2px solid #f1f5f9" }}>
             <ProjectBadge project={project} />
             <span style={{ fontSize:12, color:"#94a3b8", fontWeight:600 }}>{items.length} concluído{items.length!==1?"s":""}</span>
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {items.map(a => (
+            {items.map(a=>(
               <div key={a.id} style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"10px 14px",
                 borderRadius:8, background:"#f8fafc", border:"1px solid #f1f5f9" }}>
                 <div style={{ width:20, height:20, borderRadius:"50%", background:"#dcfce7",
                   display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, flexShrink:0, marginTop:1 }}>✓</div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:600, color:"#64748b", textDecoration:"line-through", marginBottom:3 }}>{a.description}</div>
-                  <div style={{ fontSize:11, color:"#94a3b8" }}>
-                    👤 {a.responsible} · 📅 {a.due_date} · 📋 {a.meetingTitle}
-                  </div>
+                  <div style={{ fontSize:11, color:"#94a3b8" }}>👤 {a.responsible} · 📅 {a.due_date} · 📋 {a.meetingTitle}</div>
                 </div>
               </div>
             ))}
@@ -1269,80 +1248,64 @@ function CompletedTab({ actions, meetings }) {
 
 // ─── ABA 5: DASHBOARD ────────────────────────────────────────────────────────
 function DashboardTab({ meetings, actions }) {
-  const [onlyMe, setOnlyMe]           = useState(false);
-  const [filterProject, setFP]        = useState("Todos");
-  const [filterStatus, setFS]         = useState("Todos");
-  const [filterResponsible, setFR]    = useState("Todos");
+  const [onlyMe, setOnlyMe]        = useState(false);
+  const [filterProject, setFP]     = useState("Todos");
+  const [filterStatus, setFS]      = useState("Todos");
+  const [filterResponsible, setFR] = useState("Todos");
 
-  // Todos os projetos (de meetings e de actions com campo project)
   function getActionProject(a) {
     if (a.project) return a.project;
-    return meetings.find(m => m.id === a.meeting_id)?.project ?? "Sem projeto";
+    return meetings.find(m=>m.id===a.meeting_id)?.project ?? "Sem projeto";
   }
 
-  const allProjects = [...new Set(actions.map(getActionProject).filter(Boolean))].sort();
-  const allResponsibles = [...new Set(actions.map(a => a.responsible).filter(Boolean))].sort();
+  const allProjects     = [...new Set(actions.map(getActionProject).filter(Boolean))].sort();
+  const allResponsibles = [...new Set(actions.map(a=>a.responsible).filter(Boolean))].sort();
 
-  // Aplicar filtros
   let fa = actions;
-  if (onlyMe) fa = fa.filter(a => a.responsible === ME);
-  if (filterProject !== "Todos") fa = fa.filter(a => getActionProject(a) === filterProject);
-  if (filterStatus !== "Todos") fa = fa.filter(a => a.status === filterStatus);
-  if (filterResponsible !== "Todos") fa = fa.filter(a => a.responsible === filterResponsible);
-
-  // Meetings relevantes (que têm pelo menos um action no filtro)
-  const relevantMeetingIds = [...new Set(fa.map(a => a.meeting_id))];
-  const fm = meetings.filter(m => relevantMeetingIds.includes(m.id) || filterProject === "Todos");
+  if (onlyMe) fa = fa.filter(a=>a.responsible===ME);
+  if (filterProject!=="Todos") fa = fa.filter(a=>getActionProject(a)===filterProject);
+  if (filterStatus!=="Todos")  fa = fa.filter(a=>a.status===filterStatus);
+  if (filterResponsible!=="Todos") fa = fa.filter(a=>a.responsible===filterResponsible);
 
   const total    = fa.length;
-  const done     = fa.filter(a => a.status==="done").length;
-  const pending  = fa.filter(a => ["pending","personal"].includes(a.status)).length;
-  const critical = fa.filter(a => a.status==="critical").length;
-  const inProg   = fa.filter(a => a.status==="in_progress").length;
-  const rate     = total > 0 ? Math.round((done/total)*100) : 0;
-
-  // Projetos presentes nos actions filtrados
+  const done     = fa.filter(a=>a.status==="done").length;
+  const pending  = fa.filter(a=>["pending","personal"].includes(a.status)).length;
+  const critical = fa.filter(a=>a.status==="critical").length;
+  const inProg   = fa.filter(a=>a.status==="in_progress").length;
+  const rate     = total>0 ? Math.round((done/total)*100) : 0;
   const projectsInFilter = [...new Set(fa.map(getActionProject))];
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-      {/* Filtros */}
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #f1f5f9", padding:"14px 18px" }}>
         <div style={{ fontSize:12, fontWeight:700, color:"#475569", marginBottom:10, textTransform:"uppercase", letterSpacing:0.3 }}>Filtros</div>
         <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-          <Toggle checked={onlyMe} onChange={() => { setOnlyMe(!onlyMe); setFR("Todos"); }} label={`Apenas meus (${ME.split(" ")[0]})`} />
-
-          <select value={filterProject} onChange={e => setFP(e.target.value)}
+          <Toggle checked={onlyMe} onChange={()=>{ setOnlyMe(!onlyMe); setFR("Todos"); }} label={`Apenas meus (${ME.split(" ")[0]})`} />
+          <select value={filterProject} onChange={e=>setFP(e.target.value)}
             style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
             <option value="Todos">Todos os projetos</option>
-            {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
+            {allProjects.map(p=><option key={p} value={p}>{p}</option>)}
           </select>
-
-          <select value={filterStatus} onChange={e => setFS(e.target.value)}
+          <select value={filterStatus} onChange={e=>setFS(e.target.value)}
             style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
             <option value="Todos">Todos os status</option>
-            {KANBAN_COLS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            {KANBAN_COLS.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
-
           {!onlyMe && (
-            <select value={filterResponsible} onChange={e => setFR(e.target.value)}
+            <select value={filterResponsible} onChange={e=>setFR(e.target.value)}
               style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
               <option value="Todos">Todos os responsáveis</option>
-              {allResponsibles.map(r => <option key={r} value={r}>{r}</option>)}
+              {allResponsibles.map(r=><option key={r} value={r}>{r}</option>)}
             </select>
           )}
-
-          {(filterProject !== "Todos" || filterStatus !== "Todos" || filterResponsible !== "Todos" || onlyMe) && (
-            <button onClick={() => { setOnlyMe(false); setFP("Todos"); setFS("Todos"); setFR("Todos"); }}
+          {(filterProject!=="Todos"||filterStatus!=="Todos"||filterResponsible!=="Todos"||onlyMe) && (
+            <button onClick={()=>{ setOnlyMe(false); setFP("Todos"); setFS("Todos"); setFR("Todos"); }}
               style={{ padding:"5px 12px", borderRadius:8, border:"1px solid #fca5a5", background:"#fff",
-                color:"#ef4444", fontSize:11, fontWeight:600, cursor:"pointer" }}>
-              ✕ Limpar filtros
-            </button>
+                color:"#ef4444", fontSize:11, fontWeight:600, cursor:"pointer" }}>✕ Limpar filtros</button>
           )}
         </div>
       </div>
 
-      {/* KPIs */}
       <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
         {[
           { label:"Reuniões",        value:meetings.length, color:"#1e3a8a", icon:"📋" },
@@ -1351,7 +1314,7 @@ function DashboardTab({ meetings, actions }) {
           { label:"Pontos críticos", value:critical,  color:"#ef4444", icon:"🔴" },
           { label:"Em andamento",    value:inProg,    color:"#2563eb", icon:"⚡" },
           { label:"Taxa conclusão",  value:`${rate}%`,color:"#10b981", icon:"📈" },
-        ].map(k => (
+        ].map(k=>(
           <div key={k.label} style={{ flex:"1 1 130px", padding:"14px 16px", borderRadius:12, background:"#fff", border:"1px solid #f1f5f9" }}>
             <div style={{ fontSize:18, marginBottom:4 }}>{k.icon}</div>
             <div style={{ fontSize:26, fontWeight:800, color:k.color }}>{k.value}</div>
@@ -1360,16 +1323,14 @@ function DashboardTab({ meetings, actions }) {
         ))}
       </div>
 
-      {/* Por projeto */}
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #f1f5f9", padding:"18px 22px" }}>
         <div style={{ fontSize:13, fontWeight:700, color:"#1e293b", marginBottom:14 }}>Encaminhamentos por projeto</div>
-        {projectsInFilter.length === 0 && <div style={{ fontSize:12, color:"#94a3b8" }}>Sem dados.</div>}
-        {projectsInFilter.map(project => {
-          const pi = fa.filter(a => getActionProject(a) === project);
-          const pd = pi.filter(a => a.status==="done").length;
-          const pct = pi.length > 0 ? Math.round((pd/pi.length)*100) : 0;
+        {projectsInFilter.length===0 && <div style={{ fontSize:12, color:"#94a3b8" }}>Sem dados.</div>}
+        {projectsInFilter.map(project=>{
+          const pi = fa.filter(a=>getActionProject(a)===project);
+          const pd = pi.filter(a=>a.status==="done").length;
+          const pct = pi.length>0 ? Math.round((pd/pi.length)*100) : 0;
           const color = getProjectColor(project);
-          const statuses = KANBAN_COLS.slice(0, -1); // sem done
           return (
             <div key={project} style={{ marginBottom:16 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
@@ -1379,74 +1340,51 @@ function DashboardTab({ meetings, actions }) {
               <div style={{ height:8, background:"#f1f5f9", borderRadius:99, overflow:"hidden", marginBottom:6 }}>
                 <div style={{ height:"100%", width:`${pct}%`, background:color, borderRadius:99, transition:"width 0.5s" }} />
               </div>
-              {/* Mini distribuição de status */}
               <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                {KANBAN_COLS.map(c => {
-                  const n = pi.filter(a => a.status === c.id).length;
-                  if (n === 0) return null;
-                  return (
-                    <span key={c.id} style={{ fontSize:10, padding:"1px 8px", borderRadius:99,
-                      background:`${c.color}15`, color:c.color, fontWeight:700, border:`1px solid ${c.color}30` }}>
-                      {c.label}: {n}
-                    </span>
-                  );
-                })}
+                {KANBAN_COLS.map(c=>{ const n=pi.filter(a=>a.status===c.id).length; if(!n) return null;
+                  return <span key={c.id} style={{ fontSize:10, padding:"1px 8px", borderRadius:99,
+                    background:`${c.color}15`, color:c.color, fontWeight:700, border:`1px solid ${c.color}30` }}>{c.label}: {n}</span>; })}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Pendências por responsável */}
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #f1f5f9", padding:"18px 22px" }}>
         <div style={{ fontSize:13, fontWeight:700, color:"#1e293b", marginBottom:12 }}>Pendências por responsável</div>
-        {[...new Set(fa.map(a => a.responsible))].map(resp => {
-          const open = fa.filter(a => a.responsible===resp && a.status!=="done").length;
-          const doneR = fa.filter(a => a.responsible===resp && a.status==="done").length;
-          if (open === 0 && doneR === 0) return null;
+        {[...new Set(fa.map(a=>a.responsible))].map(resp=>{
+          const open  = fa.filter(a=>a.responsible===resp&&a.status!=="done").length;
+          const doneR = fa.filter(a=>a.responsible===resp&&a.status==="done").length;
+          if (!open && !doneR) return null;
           const initials = resp.split(" ").slice(0,2).map(w=>w[0]).join("");
-          const isMe = resp === ME;
+          const isMe = resp===ME;
           return (
             <div key={resp} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, padding:"8px 12px",
               borderRadius:8, background:isMe?"#f0f7ff":"#fafafa", border:`1px solid ${isMe?"#bfdbfe":"#f1f5f9"}` }}>
-              <div style={{ width:32, height:32, borderRadius:"50%",
-                background:isMe?"#dbeafe":"#f1f5f9", display:"flex", alignItems:"center",
-                justifyContent:"center", fontSize:11, fontWeight:700,
-                color:isMe?"#1e3a8a":"#475569", border:isMe?"2px solid #1e3a8a":"none", flexShrink:0 }}>
-                {initials}
-              </div>
-              <div style={{ flex:1, fontSize:12, fontWeight:isMe?700:400, color:isMe?"#1e3a8a":"#334155" }}>
-                {resp}{isMe?" (eu)":""}
-              </div>
+              <div style={{ width:32, height:32, borderRadius:"50%", background:isMe?"#dbeafe":"#f1f5f9",
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700,
+                color:isMe?"#1e3a8a":"#475569", border:isMe?"2px solid #1e3a8a":"none", flexShrink:0 }}>{initials}</div>
+              <div style={{ flex:1, fontSize:12, fontWeight:isMe?700:400, color:isMe?"#1e3a8a":"#334155" }}>{resp}{isMe?" (eu)":""}</div>
               <div style={{ display:"flex", gap:6 }}>
-                {open > 0 && (
-                  <span style={{ padding:"3px 10px", borderRadius:99, background:"#fef3c7", color:"#d97706", fontSize:11, fontWeight:700 }}>
-                    {open} aberto{open>1?"s":""}
-                  </span>
-                )}
-                {doneR > 0 && (
-                  <span style={{ padding:"3px 10px", borderRadius:99, background:"#dcfce7", color:"#16a34a", fontSize:11, fontWeight:700 }}>
-                    {doneR} concluído{doneR>1?"s":""}
-                  </span>
-                )}
+                {open>0 && <span style={{ padding:"3px 10px", borderRadius:99, background:"#fef3c7", color:"#d97706", fontSize:11, fontWeight:700 }}>{open} aberto{open>1?"s":""}</span>}
+                {doneR>0 && <span style={{ padding:"3px 10px", borderRadius:99, background:"#dcfce7", color:"#16a34a", fontSize:11, fontWeight:700 }}>{doneR} concluído{doneR>1?"s":""}</span>}
               </div>
             </div>
           );
         })}
-        {fa.length === 0 && <div style={{ fontSize:12, color:"#94a3b8" }}>Nenhum dado com os filtros selecionados.</div>}
+        {fa.length===0 && <div style={{ fontSize:12, color:"#94a3b8" }}>Nenhum dado com os filtros selecionados.</div>}
       </div>
 
-      {/* Timeline de conclusões (últimas 4 semanas) */}
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #f1f5f9", padding:"18px 22px" }}>
         <div style={{ fontSize:13, fontWeight:700, color:"#1e293b", marginBottom:12 }}>Status geral dos encaminhamentos</div>
         <div style={{ display:"flex", gap:8 }}>
-          {KANBAN_COLS.map(c => {
-            const n = fa.filter(a => a.status === c.id).length;
-            const pct = total > 0 ? Math.round((n/total)*100) : 0;
+          {KANBAN_COLS.map(c=>{
+            const n = fa.filter(a=>a.status===c.id).length;
+            const pct = total>0 ? Math.round((n/total)*100) : 0;
             return (
               <div key={c.id} style={{ flex:1, textAlign:"center" }}>
                 <div style={{ height:60, background:"#f1f5f9", borderRadius:8, overflow:"hidden", display:"flex", alignItems:"flex-end" }}>
-                  <div style={{ width:"100%", height:`${pct}%`, background:c.color, transition:"height 0.5s", minHeight: n>0?4:0 }} />
+                  <div style={{ width:"100%", height:`${pct}%`, background:c.color, transition:"height 0.5s", minHeight:n>0?4:0 }} />
                 </div>
                 <div style={{ fontSize:10, color:c.color, fontWeight:700, marginTop:4 }}>{n}</div>
                 <div style={{ fontSize:9, color:"#94a3b8", lineHeight:1.2, marginTop:1 }}>{c.label.split(" ")[0]}</div>
@@ -1454,6 +1392,163 @@ function DashboardTab({ meetings, actions }) {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ABA 6: ENVIO DE AGENDAS ─────────────────────────────────────────────────
+function EnvioAgendasTab() {
+  const [projetos, setProjetos] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [adicionando, setAdicionando] = useState(false);
+  const [novoNome, setNovoNome] = useState("");
+  const [savingId, setSavingId] = useState(null);
+
+  useEffect(() => { carregarProjetos(); }, []);
+
+  async function carregarProjetos() {
+    setLoading(true);
+    const { data, error } = await sb.from("agenda_projetos").select("*").order("created_at", { ascending:true });
+    if (!error && data) setProjetos(data);
+    setLoading(false);
+  }
+
+  async function adicionarProjeto() {
+    const nome = novoNome.trim();
+    if (!nome) return;
+    const { data, error } = await sb.from("agenda_projetos")
+      .insert({ nome, atividades_programadas:false, agenda_enviada:false })
+      .select().single();
+    if (!error && data) { setProjetos(prev=>[...prev,data]); setNovoNome(""); setAdicionando(false); }
+  }
+
+  async function toggleFlag(id, campo, valorAtual) {
+    setSavingId(id+campo);
+    const { error } = await sb.from("agenda_projetos").update({ [campo]:!valorAtual }).eq("id",id);
+    if (!error) setProjetos(prev=>prev.map(p=>p.id===id?{...p,[campo]:!valorAtual}:p));
+    setSavingId(null);
+  }
+
+  async function excluirProjeto(id) {
+    if (!confirm("Remover este projeto da lista de agendas?")) return;
+    const { error } = await sb.from("agenda_projetos").delete().eq("id",id);
+    if (!error) setProjetos(prev=>prev.filter(p=>p.id!==id));
+  }
+
+  const FLAG_BTN = (active, activeLabel, inactiveLabel, activeBg, activeColor, inactiveIcon, activeIcon) => ({
+    display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:20, border:"none",
+    cursor:"pointer", fontSize:12, fontWeight:600, transition:"all 0.15s",
+    background: active ? activeBg : "#f3f4f6",
+    color: active ? activeColor : "#9ca3af",
+  });
+
+  return (
+    <div style={{ maxWidth:820 }}>
+      <div style={{ marginBottom:24 }}>
+        <div style={{ fontSize:18, fontWeight:800, color:"#1e293b", marginBottom:4 }}>📅 Envio de Agendas</div>
+        <div style={{ fontSize:13, color:"#64748b" }}>Controle semanal de atividades programadas e envio de agendas por projeto</div>
+      </div>
+
+      <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e5e7eb",
+        overflow:"hidden", boxShadow:"0 1px 4px rgba(0,0,0,.06)" }}>
+        {/* Header */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 190px 190px 44px",
+          padding:"11px 20px", background:"#f9fafb", borderBottom:"1px solid #e5e7eb", gap:8 }}>
+          {["PROJETO","ATIVIDADES PROGRAMADAS","AGENDA ENVIADA",""].map((h,i)=>(
+            <div key={i} style={{ fontSize:11, fontWeight:700, color:"#6b7280",
+              textTransform:"uppercase", letterSpacing:"0.05em", textAlign:i>0&&i<3?"center":"left" }}>{h}</div>
+          ))}
+        </div>
+
+        {loading ? (
+          <div style={{ padding:40, textAlign:"center", color:"#9ca3af" }}>Carregando...</div>
+        ) : (
+          <>
+            {projetos.map((p,idx)=>(
+              <div key={p.id} style={{ display:"grid", gridTemplateColumns:"1fr 190px 190px 44px",
+                padding:"12px 20px", gap:8, alignItems:"center",
+                borderBottom:idx<projetos.length-1||adicionando?"1px solid #f3f4f6":"none",
+                background:"#fff", transition:"background 0.12s" }}
+                onMouseEnter={e=>e.currentTarget.style.background="#fafafa"}
+                onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                <span style={{ fontSize:14, fontWeight:600, color:"#111" }}>{p.nome}</span>
+
+                <div style={{ display:"flex", justifyContent:"center" }}>
+                  <button onClick={()=>toggleFlag(p.id,"atividades_programadas",p.atividades_programadas)}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 14px", borderRadius:20, border:"none",
+                      cursor:"pointer", fontSize:12, fontWeight:600, transition:"all 0.15s",
+                      background:p.atividades_programadas?"#dcfce7":"#f3f4f6",
+                      color:p.atividades_programadas?"#16a34a":"#9ca3af" }}>
+                    {p.atividades_programadas ? "✅ Sim" : "⬜ Não"}
+                  </button>
+                </div>
+
+                <div style={{ display:"flex", justifyContent:"center" }}>
+                  <button onClick={()=>toggleFlag(p.id,"agenda_enviada",p.agenda_enviada)}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 14px", borderRadius:20, border:"none",
+                      cursor:"pointer", fontSize:12, fontWeight:600, transition:"all 0.15s",
+                      background:p.agenda_enviada?"#dbeafe":"#f3f4f6",
+                      color:p.agenda_enviada?"#1d4ed8":"#9ca3af" }}>
+                    {p.agenda_enviada ? "📨 Enviada" : "📭 Pendente"}
+                  </button>
+                </div>
+
+                <div style={{ display:"flex", justifyContent:"center" }}>
+                  <button onClick={()=>excluirProjeto(p.id)} title="Remover"
+                    style={{ background:"none", border:"none", cursor:"pointer", color:"#d1d5db",
+                      fontSize:15, padding:4, borderRadius:4, lineHeight:1, transition:"color 0.15s" }}
+                    onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
+                    onMouseLeave={e=>e.currentTarget.style.color="#d1d5db"}>🗑</button>
+                </div>
+              </div>
+            ))}
+
+            {/* Linha inline para novo projeto */}
+            {adicionando && (
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 190px 190px 44px",
+                padding:"10px 20px", gap:8, alignItems:"center", background:"#fffbeb",
+                borderTop:projetos.length>0?"1px solid #f3f4f6":"none" }}>
+                <input autoFocus value={novoNome} onChange={e=>setNovoNome(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==="Enter") adicionarProjeto(); if(e.key==="Escape"){ setAdicionando(false); setNovoNome(""); } }}
+                  placeholder="Nome do projeto..."
+                  style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:13,
+                    outline:"none", width:"100%", boxSizing:"border-box" }} />
+                <div style={{ textAlign:"center", color:"#9ca3af", fontSize:12 }}>—</div>
+                <div style={{ textAlign:"center", color:"#9ca3af", fontSize:12 }}>—</div>
+                <div style={{ display:"flex", gap:4, justifyContent:"center" }}>
+                  <button onClick={adicionarProjeto} style={{ background:"none", border:"none", cursor:"pointer", fontSize:16, color:"#16a34a" }}>✓</button>
+                  <button onClick={()=>{ setAdicionando(false); setNovoNome(""); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:16, color:"#ef4444" }}>✕</button>
+                </div>
+              </div>
+            )}
+
+            {projetos.length===0 && !adicionando && (
+              <div style={{ padding:40, textAlign:"center", color:"#9ca3af", fontSize:13 }}>Nenhum projeto cadastrado ainda.</div>
+            )}
+          </>
+        )}
+
+        {/* Footer */}
+        <div style={{ padding:"12px 20px", borderTop:"1px solid #e5e7eb", background:"#f9fafb" }}>
+          {!adicionando ? (
+            <button onClick={()=>setAdicionando(true)}
+              style={{ display:"flex", alignItems:"center", gap:6, background:"none",
+                border:"1px dashed #d1d5db", borderRadius:8, padding:"6px 14px", cursor:"pointer",
+                fontSize:12, color:"#6b7280", fontWeight:600, transition:"all 0.15s" }}
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor="#6366f1"; e.currentTarget.style.color="#6366f1"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor="#d1d5db"; e.currentTarget.style.color="#6b7280"; }}>
+              + Adicionar projeto
+            </button>
+          ) : (
+            <span style={{ fontSize:12, color:"#9ca3af" }}>Enter para salvar · Esc para cancelar</span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ marginTop:14, display:"flex", gap:20, flexWrap:"wrap" }}>
+        <span style={{ fontSize:11, color:"#9ca3af" }}>✅ Atividades planejadas para a semana</span>
+        <span style={{ fontSize:11, color:"#9ca3af" }}>📨 Agenda enviada ao cliente</span>
       </div>
     </div>
   );
@@ -1469,15 +1564,16 @@ export default function PWRMeetingApp() {
   } = useAppData();
 
   const tabs = [
-    { id:"transcricoes",    label:"Transcrições",   icon:"📄" },
-    { id:"atas",            label:"Atas",            icon:"📋" },
-    { id:"encaminhamentos", label:"Encaminhamentos", icon:"✅" },
-    { id:"concluidos",      label:"Concluídos",      icon:"🏁" },
-    { id:"dashboard",       label:"Dashboard",       icon:"📊" },
+    { id:"transcricoes",    label:"Transcrições",    icon:"📄" },
+    { id:"atas",            label:"Atas",             icon:"📋" },
+    { id:"encaminhamentos", label:"Encaminhamentos",  icon:"✅" },
+    { id:"concluidos",      label:"Concluídos",       icon:"🏁" },
+    { id:"dashboard",       label:"Dashboard",        icon:"📊" },
+    { id:"envio_agendas",   label:"Envio de Agendas", icon:"📅" },
   ];
 
-  const doneCount = actions.filter(a => a.status==="done").length;
-  const openCount = actions.filter(a => a.status!=="done").length;
+  const doneCount = actions.filter(a=>a.status==="done").length;
+  const openCount = actions.filter(a=>a.status!=="done").length;
 
   return (
     <div style={{ fontFamily:"'Segoe UI',Arial,sans-serif", minHeight:"100vh", background:"#f8fafc" }}>
@@ -1496,8 +1592,8 @@ export default function PWRMeetingApp() {
 
       <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", padding:"0 32px",
         display:"flex", gap:0, overflowX:"auto" }}>
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+        {tabs.map(tab=>(
+          <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{
             padding:"13px 18px", border:"none", background:"none", cursor:"pointer",
             fontSize:13, fontWeight:activeTab===tab.id?700:400,
             color:activeTab===tab.id?"#1e3a8a":"#64748b",
@@ -1511,7 +1607,7 @@ export default function PWRMeetingApp() {
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"24px 32px" }}>
         {loading ? (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:300, gap:12, color:"#64748b", fontSize:14 }}>
-            <Spinner size={28} /> Carregando dados...
+            <Spinner size={28}/> Carregando dados...
           </div>
         ) : (
           <>
@@ -1520,6 +1616,7 @@ export default function PWRMeetingApp() {
             {activeTab==="encaminhamentos" && <ActionItemsTab actions={actions} meetings={meetings} addAction={addAction} updateAction={updateAction} deleteAction={deleteAction} />}
             {activeTab==="concluidos"      && <CompletedTab actions={actions} meetings={meetings} />}
             {activeTab==="dashboard"       && <DashboardTab meetings={meetings} actions={actions} />}
+            {activeTab==="envio_agendas"   && <EnvioAgendasTab />}
           </>
         )}
       </div>
