@@ -9,11 +9,24 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
 const ME = "Bruno Henrique";
 const DONE_HIDE_MS = 5 * 60 * 1000;
-const PROJECT_COLORS = {
+const DEFAULT_PROJECT_COLORS = {
   "San Paolo":"#f97316","CDG Engenharia":"#ef4444","UmuPrev":"#06b6d4",
   "Montenegro Urbanismo":"#10b981","VDE":"#f59e0b","Nobrecon":"#6366f1",
   "PWR Gestão (interno)":"#1e3a8a",
 };
+const EXTRA_COLORS = [
+  "#8b5cf6","#ec4899","#14b8a6","#f43f5e","#84cc16","#0ea5e9","#fb923c","#a855f7",
+];
+let PROJECT_COLORS = { ...DEFAULT_PROJECT_COLORS };
+
+function getProjectColor(project) {
+  if (PROJECT_COLORS[project]) return PROJECT_COLORS[project];
+  // Assign a deterministic color based on project name
+  const idx = Object.keys(PROJECT_COLORS).length % EXTRA_COLORS.length;
+  PROJECT_COLORS[project] = EXTRA_COLORS[idx];
+  return PROJECT_COLORS[project];
+}
+
 const MONTH_LABELS = {
   "2026-01":"Jan 2026","2026-02":"Fev 2026","2026-03":"Mar 2026",
   "2026-04":"Abr 2026","2026-05":"Mai 2026","2026-06":"Jun 2026",
@@ -28,7 +41,7 @@ const KANBAN_COLS = [
 
 // ─── COMPONENTES BASE ─────────────────────────────────────────────────────────
 function ProjectBadge({ project, small }) {
-  const color = PROJECT_COLORS[project] ?? "#64748b";
+  const color = getProjectColor(project);
   return (
     <span style={{ display:"inline-block", padding: small?"1px 7px":"2px 10px", borderRadius:99,
       fontSize:small?10:11, fontWeight:700, color:"#fff", background:color, whiteSpace:"nowrap" }}>
@@ -122,7 +135,7 @@ function Toast({ message, type = "success" }) {
 function useAppData() {
   const [meetings, setMeetings]     = useState([]);
   const [actions, setActions]       = useState([]);
-  const [atas, setAtas]             = useState({});   // { meeting_id: ata }
+  const [atas, setAtas]             = useState({});
   const [loading, setLoading]       = useState(true);
   const [toast, setToast]           = useState(null);
 
@@ -131,7 +144,6 @@ function useAppData() {
     setTimeout(() => setToast(null), 3500);
   }
 
-  // ── LOAD ──────────────────────────────────────────────────────────────────
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -154,7 +166,6 @@ function useAppData() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // ── MEETINGS ──────────────────────────────────────────────────────────────
   async function addMeeting(data) {
     const { data: row, error } = await sb.from("meetings").insert([data]).select().single();
     if (error) { showToast("Erro ao salvar reunião: " + error.message, "error"); return null; }
@@ -171,19 +182,26 @@ function useAppData() {
     showToast("Transcrição apagada.");
   }
 
-  // ── ACTION ITEMS ──────────────────────────────────────────────────────────
   async function addAction(data) {
     const { data: row, error } = await sb.from("action_items").insert([data]).select().single();
-    if (error) { showToast("Erro ao adicionar encaminhamento: " + error.message, "error"); return; }
+    if (error) { showToast("Erro ao adicionar encaminhamento: " + error.message, "error"); return null; }
     setActions(prev => [{ ...row, done_at: null }, ...prev]);
     showToast("Encaminhamento adicionado.");
+    return row;
+  }
+
+  async function addActions(dataArray) {
+    if (!dataArray || dataArray.length === 0) return [];
+    const { data: rows, error } = await sb.from("action_items").insert(dataArray).select();
+    if (error) { showToast("Erro ao adicionar encaminhamentos: " + error.message, "error"); return []; }
+    setActions(prev => [...(rows ?? []).map(r => ({ ...r, done_at: null })), ...prev]);
+    return rows ?? [];
   }
 
   async function updateAction(id, updates) {
     const dbUpdates = { ...updates };
     if (updates.status === "done" && !updates.done_at) dbUpdates.done_at = new Date().toISOString();
     if (updates.status && updates.status !== "done") dbUpdates.done_at = null;
-
     const { error } = await sb.from("action_items").update(dbUpdates).eq("id", id);
     if (error) { showToast("Erro ao atualizar: " + error.message, "error"); return; }
     setActions(prev => prev.map(a => a.id === id
@@ -198,14 +216,12 @@ function useAppData() {
     showToast("Encaminhamento excluído.");
   }
 
-  // ── UPDATE MEETING ────────────────────────────────────────────────────────
   async function updateMeeting(id, updates) {
     const { error } = await sb.from("meetings").update(updates).eq("id", id);
     if (error) { showToast("Erro ao atualizar reunião: " + error.message, "error"); return; }
     setMeetings(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
   }
 
-  // ── ATAS ──────────────────────────────────────────────────────────────────
   async function saveAta(meetingId, ataData) {
     const existing = atas[meetingId];
     if (existing) {
@@ -236,7 +252,7 @@ function useAppData() {
   return {
     meetings, actions, atas, loading, toast,
     loadAll, addMeeting, deleteMeeting, updateMeeting,
-    addAction, updateAction, deleteAction, saveAta, deleteAta,
+    addAction, addActions, updateAction, deleteAction, saveAta, deleteAta,
     showToast,
   };
 }
@@ -276,12 +292,10 @@ function ClassifyProjectModal({ meeting, allProjects, onSave, onClose }) {
 
         <div style={{ borderTop:"1px solid #f1f5f9", paddingTop:14, marginBottom:16 }}>
           <div style={{ fontSize:11, fontWeight:700, color:"#475569", marginBottom:8, textTransform:"uppercase" }}>Ou criar novo projeto</div>
-          <div style={{ display:"flex", gap:6 }}>
-            <input value={newName} onChange={e => { setNewName(e.target.value); setCreating(true); }}
-              placeholder="Nome do novo projeto..."
-              style={{ flex:1, padding:"7px 10px", borderRadius:8, border:`2px solid ${creating && newName?"#1e3a8a":"#e2e8f0"}`,
-                fontSize:12, outline:"none" }} />
-          </div>
+          <input value={newName} onChange={e => { setNewName(e.target.value); setCreating(true); }}
+            placeholder="Nome do novo projeto..."
+            style={{ width:"100%", padding:"7px 10px", borderRadius:8, border:`2px solid ${creating && newName?"#1e3a8a":"#e2e8f0"}`,
+              fontSize:12, outline:"none", boxSizing:"border-box" }} />
         </div>
 
         <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
@@ -295,17 +309,195 @@ function ClassifyProjectModal({ meeting, allProjects, onSave, onClose }) {
   );
 }
 
+// ─── MODAL RENOMEAR TRANSCRIÇÃO ───────────────────────────────────────────────
+function RenameModal({ meeting, onSave, onClose }) {
+  const [title, setTitle] = useState(meeting.title);
+
+  function handleSave() {
+    if (!title.trim()) return;
+    onSave(meeting.id, title.trim());
+    onClose();
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:999,
+      display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"#fff", borderRadius:14, padding:28, maxWidth:420, width:"90%",
+        boxShadow:"0 20px 48px rgba(0,0,0,.25)" }}>
+        <div style={{ fontSize:15, fontWeight:800, color:"#1e293b", marginBottom:16 }}>Renomear Transcrição</div>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleSave()}
+          autoFocus
+          style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"2px solid #1e3a8a",
+            fontSize:13, outline:"none", boxSizing:"border-box", marginBottom:20 }}
+        />
+        <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+          <button onClick={onClose} style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #e2e8f0",
+            background:"#fff", fontSize:12, cursor:"pointer", color:"#475569" }}>Cancelar</button>
+          <button onClick={handleSave} style={{ padding:"8px 16px", borderRadius:8, border:"none",
+            background:"#1e3a8a", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MODAL REVISÃO DE ENCAMINHAMENTOS DA ATA ─────────────────────────────────
+function ActionReviewModal({ encaminhamentos, meetingId, meetingProject, meetings, addActions, onClose }) {
+  // encaminhamentos vem como array de arrays: [[nº, ação, responsável, prazo], ...]
+  const [items, setItems] = useState(
+    (encaminhamentos || []).map((row, i) => ({
+      id: i,
+      description: row[1] || row[0] || "",
+      responsible: row[2] || ME,
+      due_date: row[3] || "A Definir",
+      project: meetingProject || "Sem projeto",
+      include: true,
+    }))
+  );
+  const [saving, setSaving] = useState(false);
+
+  // Coletar projetos disponíveis
+  const allProjects = [...new Set([
+    ...Object.keys(DEFAULT_PROJECT_COLORS),
+    ...meetings.map(m => m.project).filter(Boolean),
+  ])].sort();
+
+  function toggle(id) {
+    setItems(prev => prev.map(it => it.id === id ? { ...it, include: !it.include } : it));
+  }
+
+  function updateItem(id, field, value) {
+    setItems(prev => prev.map(it => it.id === id ? { ...it, [field]: value } : it));
+  }
+
+  async function handleSend() {
+    setSaving(true);
+    const toSend = items.filter(it => it.include).map(it => ({
+      meeting_id: meetingId,
+      description: it.description,
+      responsible: it.responsible,
+      due_date: it.due_date,
+      project: it.project,
+      status: "pending",
+    }));
+    await addActions(toSend);
+    setSaving(false);
+    onClose();
+  }
+
+  const includedCount = items.filter(i => i.include).length;
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:999,
+      display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ background:"#fff", borderRadius:16, maxWidth:680, width:"100%",
+        boxShadow:"0 24px 64px rgba(0,0,0,.3)", display:"flex", flexDirection:"column", maxHeight:"90vh" }}>
+        {/* Header */}
+        <div style={{ padding:"20px 24px 16px", borderBottom:"1px solid #f1f5f9" }}>
+          <div style={{ fontSize:16, fontWeight:800, color:"#1e293b", marginBottom:4 }}>
+            Revisar Encaminhamentos da Ata
+          </div>
+          <div style={{ fontSize:12, color:"#64748b" }}>
+            Selecione quais encaminhamentos devem ir para o Kanban de pendências.
+            Desmarque para descartar ou edite os campos antes de enviar.
+          </div>
+        </div>
+
+        {/* Lista */}
+        <div style={{ flex:1, overflowY:"auto", padding:"12px 24px" }}>
+          {items.length === 0 && (
+            <div style={{ textAlign:"center", padding:32, color:"#94a3b8" }}>Nenhum encaminhamento encontrado na ata.</div>
+          )}
+          {items.map(it => (
+            <div key={it.id} style={{ display:"flex", gap:10, padding:"12px 14px", marginBottom:8, borderRadius:10,
+              border:`2px solid ${it.include ? "#bfdbfe" : "#f1f5f9"}`,
+              background: it.include ? "#f8fbff" : "#f8fafc",
+              opacity: it.include ? 1 : 0.5, transition:"all 0.15s" }}>
+              {/* Checkbox */}
+              <div onClick={() => toggle(it.id)} style={{ flexShrink:0, marginTop:2, cursor:"pointer" }}>
+                <div style={{ width:20, height:20, borderRadius:5, border:`2px solid ${it.include?"#1e3a8a":"#cbd5e1"}`,
+                  background: it.include ? "#1e3a8a" : "#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {it.include && <span style={{ color:"#fff", fontSize:12, fontWeight:900 }}>✓</span>}
+                </div>
+              </div>
+              {/* Campos */}
+              <div style={{ flex:1, display:"flex", flexDirection:"column", gap:5 }}>
+                <input
+                  value={it.description}
+                  onChange={e => updateItem(it.id, "description", e.target.value)}
+                  disabled={!it.include}
+                  style={{ padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0",
+                    fontSize:12, fontWeight:600, color:"#1e293b", width:"100%", boxSizing:"border-box" }}
+                />
+                <div style={{ display:"flex", gap:6 }}>
+                  <input
+                    value={it.responsible}
+                    onChange={e => updateItem(it.id, "responsible", e.target.value)}
+                    disabled={!it.include}
+                    placeholder="Responsável"
+                    style={{ flex:1, padding:"4px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11 }}
+                  />
+                  <input
+                    value={it.due_date}
+                    onChange={e => updateItem(it.id, "due_date", e.target.value)}
+                    disabled={!it.include}
+                    placeholder="Prazo"
+                    style={{ flex:1, padding:"4px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11 }}
+                  />
+                  <select
+                    value={it.project}
+                    onChange={e => updateItem(it.id, "project", e.target.value)}
+                    disabled={!it.include}
+                    style={{ flex:1, padding:"4px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, background:"#fff" }}>
+                    {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
+                    <option value={it.project}>{it.project}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding:"16px 24px", borderTop:"1px solid #f1f5f9",
+          display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ fontSize:12, color:"#64748b" }}>
+            {includedCount} de {items.length} encaminhamentos selecionados
+          </span>
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={onClose} style={{ padding:"8px 18px", borderRadius:8, border:"1px solid #e2e8f0",
+              background:"#fff", fontSize:12, cursor:"pointer", color:"#475569", fontWeight:600 }}>Cancelar</button>
+            <button onClick={handleSend} disabled={saving || includedCount === 0}
+              style={{ padding:"8px 18px", borderRadius:8, border:"none",
+                background: includedCount === 0 ? "#e2e8f0" : "#1e3a8a",
+                color: includedCount === 0 ? "#94a3b8" : "#fff",
+                fontSize:12, fontWeight:700, cursor: includedCount === 0 || saving ? "default" : "pointer",
+                display:"flex", alignItems:"center", gap:6 }}>
+              {saving ? <><Spinner size={12}/> Enviando...</> : `✅ Enviar ${includedCount} para Kanban`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── ABA 1: TRANSCRIÇÕES ─────────────────────────────────────────────────────
-function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting, saveAta, atas, loadAll }) {
-  const [search, setSearch]           = useState("");
-  const [filterProject, setFP]        = useState("Todos");
-  const [filterMonth, setFM]          = useState("Todos");
-  const [expandedId, setExpanded]     = useState(null);
-  const [syncing, setSyncing]         = useState(false);
-  const [syncMsg, setSyncMsg]         = useState(null);
-  const [confirmDel, setConfirmDel]   = useState(null);
-  const [classifyMeeting, setClassify] = useState(null);
-  const [generatingAta, setGeneratingAta] = useState(null); // meeting id
+function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting, saveAta, atas, loadAll, addActions }) {
+  const [search, setSearch]               = useState("");
+  const [filterProject, setFP]            = useState("Todos");
+  const [filterMonth, setFM]              = useState("Todos");
+  const [expandedId, setExpanded]         = useState(null);
+  const [syncing, setSyncing]             = useState(false);
+  const [syncMsg, setSyncMsg]             = useState(null);
+  const [confirmDel, setConfirmDel]       = useState(null);
+  const [classifyMeeting, setClassify]    = useState(null);
+  const [renameMeeting, setRename]        = useState(null);
+  const [generatingAta, setGeneratingAta] = useState(null);
+  const [reviewModal, setReviewModal]     = useState(null); // { encaminhamentos, meetingId, meetingProject }
   const fileRef = useRef();
 
   const allProjects = [...new Set(meetings.map(m => m.project).filter(Boolean))].sort();
@@ -313,7 +505,7 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
   const months   = ["Todos", ...new Set(meetings.map(m => m.month).filter(Boolean))];
 
   const filtered = meetings.filter(m => {
-    const s = !search || m.title.toLowerCase().includes(search.toLowerCase()) || m.project.toLowerCase().includes(search.toLowerCase());
+    const s = !search || m.title.toLowerCase().includes(search.toLowerCase()) || (m.project||"").toLowerCase().includes(search.toLowerCase());
     const p = filterProject === "Todos" || m.project === filterProject;
     const mo = filterMonth  === "Todos" || m.month  === filterMonth;
     return s && p && mo;
@@ -346,7 +538,7 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
     const today = new Date();
     const month = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
     const dateStr = `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
-    const project = Object.keys(PROJECT_COLORS).find(p => name.toLowerCase().includes(p.toLowerCase())) ?? "Sem projeto";
+    const project = Object.keys(DEFAULT_PROJECT_COLORS).find(p => name.toLowerCase().includes(p.toLowerCase())) ?? "Sem projeto";
     await addMeeting({
       project, month, date: dateStr, title: name,
       participants: [], status: "transcribed", source: "pdf",
@@ -366,10 +558,7 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
       const response = await fetch("/api/generate-ata", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transcription: meeting.transcription,
-          title: meeting.title,
-        }),
+        body: JSON.stringify({ transcription: meeting.transcription, title: meeting.title }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Erro na API");
@@ -380,7 +569,17 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
         decisoes:        data.decisoes        || [],
         encaminhamentos: data.encaminhamentos || [],
       });
-      setSyncMsg(`✓ Ata de "${meeting.title}" gerada com sucesso! Veja na aba Atas.`);
+
+      // Abre modal de revisão de encaminhamentos antes de ir pro Kanban
+      if (data.encaminhamentos && data.encaminhamentos.length > 0) {
+        setReviewModal({
+          encaminhamentos: data.encaminhamentos,
+          meetingId: meeting.id,
+          meetingProject: meeting.project,
+        });
+      } else {
+        setSyncMsg(`✓ Ata de "${meeting.title}" gerada! Veja na aba Atas.`);
+      }
     } catch (e) {
       setSyncMsg(`⚠ Erro ao gerar ata: ${e.message}`);
     } finally {
@@ -388,6 +587,9 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
       setTimeout(() => setSyncMsg(null), 6000);
     }
   }
+
+  const totalFiltered = filtered.length;
+  const plural = totalFiltered !== 1;
 
   return (
     <div>
@@ -420,8 +622,9 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
         </select>
       </div>
 
+      {/* Correção do erro de português: "reuniões" no lugar de "reuniãooes" */}
       <div style={{ fontSize:12, color:"#94a3b8", marginBottom:10 }}>
-        {filtered.length} reunião{filtered.length!==1?"ões":""} encontrada{filtered.length!==1?"s":""}
+        {totalFiltered} reunião{plural?"ões":""} encontrada{plural?"s":""}
       </div>
 
       <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
@@ -446,14 +649,21 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
                   <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>{(m.participants||[]).join(", ")}</div>
                 </div>
                 <div style={{ display:"flex", gap:6, flexShrink:0, alignItems:"center" }}>
-                  {/* Botão classificar projeto */}
+                  {/* Renomear */}
+                  <button onClick={e => { e.stopPropagation(); setRename(m); }}
+                    title="Renomear transcrição"
+                    style={{ padding:"4px 10px", borderRadius:6, border:"1px solid #e2e8f0",
+                      background:"#fff", color:"#475569", fontSize:11, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
+                    ✏️
+                  </button>
+                  {/* Classificar projeto */}
                   <button onClick={e => { e.stopPropagation(); setClassify(m); }}
                     title="Classificar projeto"
                     style={{ padding:"4px 10px", borderRadius:6, border:"1px solid #bfdbfe",
                       background:"#eff6ff", color:"#1e3a8a", fontSize:11, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
                     🏷 Projeto
                   </button>
-                  {/* Botão gerar ata */}
+                  {/* Gerar ata */}
                   <button onClick={e => { e.stopPropagation(); handleGerarAta(m); }}
                     disabled={isGenerating || hasAta}
                     title={hasAta ? "Ata já gerada" : "Gerar ata com Claude"}
@@ -505,21 +715,43 @@ function TranscriptionsTab({ meetings, addMeeting, deleteMeeting, updateMeeting,
           onClose={() => setClassify(null)}
         />
       )}
+
+      {renameMeeting && (
+        <RenameModal
+          meeting={renameMeeting}
+          onSave={(id, title) => updateMeeting(id, { title })}
+          onClose={() => setRename(null)}
+        />
+      )}
+
+      {reviewModal && (
+        <ActionReviewModal
+          encaminhamentos={reviewModal.encaminhamentos}
+          meetingId={reviewModal.meetingId}
+          meetingProject={reviewModal.meetingProject}
+          meetings={meetings}
+          addActions={addActions}
+          onClose={() => {
+            setReviewModal(null);
+            setSyncMsg("✓ Ata salva! Encaminhamentos enviados para o Kanban.");
+            setTimeout(() => setSyncMsg(null), 5000);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ─── ABA 2: ATAS ─────────────────────────────────────────────────────────────
-function MinutesTab({ meetings, atas, saveAta, deleteAta }) {
+function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
   const [filterProject, setFP]    = useState("Todos");
   const [filterMonth, setFM]      = useState("Todos");
   const [selectedId, setSelected] = useState(null);
   const [editing, setEditing]     = useState(false);
   const [localAta, setLocalAta]   = useState(null);
   const [saving, setSaving]         = useState(false);
-  const [exporting, setExporting]   = useState(false);
-  const [exportMsg, setExportMsg]   = useState(null);
   const [confirmDelAta, setConfirmDelAta] = useState(null);
+  const [reviewModal, setReviewModal] = useState(null);
 
   const withAta = meetings.filter(m => m.status === "ata_generated");
   const projects = ["Todos", ...new Set(withAta.map(m => m.project))];
@@ -550,14 +782,6 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta }) {
     await saveAta(selectedId, localAta);
     setSaving(false);
     setEditing(false);
-  }
-
-  async function handleExport() {
-    setExporting(true); setExportMsg(null);
-    await new Promise(r => setTimeout(r, 1500));
-    setExporting(false);
-    setExportMsg(`✓ Ata_${meeting?.project?.replace(/ /g,"_")}_${meeting?.date?.replace(/\//g,"-")}.docx gerada.`);
-    setTimeout(() => setExportMsg(null), 5000);
   }
 
   function updateCell(section, ri, ci, val) {
@@ -595,109 +819,97 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta }) {
 
   const displayAta = editing ? localAta : (ata ? { participantes: ata.participantes, pautas: ata.pautas, decisoes: ata.decisoes, encaminhamentos: ata.encaminhamentos } : null);
 
+  const SECTIONS = [
+    { key:"participantes",   title:"PARTICIPANTES",   columns:["#","Nome","Empresa"],            widths:[0.5,2,2] },
+    { key:"pautas",          title:"PAUTAS",          columns:["#","Pauta","Observações"],       widths:[0.5,2,2] },
+    { key:"decisoes",        title:"DECISÕES",        columns:["#","Decisão","Responsável"],     widths:[0.5,2,2] },
+    { key:"encaminhamentos", title:"ENCAMINHAMENTOS", columns:["#","Ação","Responsável","Prazo"],widths:[0.5,2.5,1.5,1] },
+  ];
+
   return (
     <div style={{ display:"flex", gap:20 }}>
+      {/* Sidebar */}
       <div style={{ width:240, flexShrink:0 }}>
-        <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+        <div style={{ marginBottom:10 }}>
           <select value={filterProject} onChange={e => setFP(e.target.value)}
-            style={{ padding:"7px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
-            {projects.map(p => <option key={p}>{p === "Todos" ? "Todos os projetos" : p}</option>)}
+            style={{ width:"100%", padding:"7px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, marginBottom:6, background:"#fff" }}>
+            {projects.map(p => <option key={p} value={p}>{p==="Todos"?"Todos os projetos":p}</option>)}
           </select>
           <select value={filterMonth} onChange={e => setFM(e.target.value)}
-            style={{ padding:"7px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
-            {months.map(m => <option key={m} value={m}>{m === "Todos" ? "Todos os meses" : (MONTH_LABELS[m]||m)}</option>)}
+            style={{ width:"100%", padding:"7px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
+            {months.map(m => <option key={m} value={m}>{m==="Todos"?"Todos os meses":(MONTH_LABELS[m]||m)}</option>)}
           </select>
         </div>
-        <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", marginBottom:8, textTransform:"uppercase" }}>
-          {filtered.length} ata{filtered.length!==1?"s":""}
+        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+          {filtered.map(m => (
+            <button key={m.id} onClick={() => selectMeeting(m.id)}
+              style={{ textAlign:"left", padding:"9px 11px", borderRadius:8,
+                border:`1px solid ${selectedId===m.id?"#1e3a8a":"#f1f5f9"}`,
+                background:selectedId===m.id?"#eff6ff":"#fff",
+                cursor:"pointer" }}>
+              <div style={{ marginBottom:3 }}><ProjectBadge project={m.project} small /></div>
+              <div style={{ fontSize:11, fontWeight:600, color:"#1e293b", lineHeight:1.3 }}>{m.title.slice(0,40)}</div>
+              <div style={{ fontSize:10, color:"#94a3b8", marginTop:2 }}>{m.date}</div>
+            </button>
+          ))}
+          {filtered.length === 0 && <div style={{ fontSize:12, color:"#94a3b8", padding:16, textAlign:"center" }}>Nenhuma ata.</div>}
         </div>
-        {filtered.map(m => (
-          <div key={m.id} onClick={() => selectMeeting(m.id)}
-            style={{ padding:"10px 12px", borderRadius:8, marginBottom:5, cursor:"pointer",
-              border:`1px solid ${selectedId===m.id?"#bfdbfe":"#f1f5f9"}`,
-              background:selectedId===m.id?"#f0f7ff":"#fff" }}>
-            <div style={{ marginBottom:3 }}><ProjectBadge project={m.project} small /></div>
-            <div style={{ fontSize:12, fontWeight:600, color:"#1e293b", lineHeight:1.3 }}>{m.title}</div>
-            <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>{m.date}</div>
-          </div>
-        ))}
-        {filtered.length === 0 && <div style={{ fontSize:12, color:"#94a3b8", textAlign:"center", padding:20 }}>Nenhuma ata</div>}
       </div>
 
+      {/* Conteúdo */}
       <div style={{ flex:1, minWidth:0 }}>
-        {!meeting || !displayAta ? (
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:300, color:"#94a3b8", fontSize:14, flexDirection:"column", gap:8 }}>
-            <span style={{ fontSize:32 }}>📋</span> Selecione uma ata para visualizar
-          </div>
+        {!meeting ? (
+          <div style={{ textAlign:"center", padding:64, color:"#94a3b8" }}>Selecione uma ata na lista.</div>
         ) : (
-          <div style={{ background:"#fff", borderRadius:10, border:"1px solid #f1f5f9", padding:"20px 24px" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16, flexWrap:"wrap", gap:10 }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:8 }}>
               <div>
-                <div style={{ fontSize:17, fontWeight:800, color:"#1f3864" }}>ATA DE REUNIÃO</div>
-                <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>DATA: {meeting.date}</div>
-                <div style={{ marginTop:6 }}><ProjectBadge project={meeting.project} /></div>
+                <div style={{ fontSize:15, fontWeight:800, color:"#1e293b" }}>{meeting.title}</div>
+                <div style={{ fontSize:11, color:"#94a3b8" }}>{meeting.date} · <ProjectBadge project={meeting.project} small /></div>
               </div>
-              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                {editing ? (
-                  <>
-                    <button onClick={handleSave} disabled={saving} style={{
-                      padding:"7px 14px", borderRadius:8, border:"none",
-                      background:saving?"#94a3b8":"#10b981", color:"#fff", fontSize:12, fontWeight:700, cursor:saving?"not-allowed":"pointer" }}>
-                      {saving ? "Salvando..." : "✓ Salvar"}
-                    </button>
-                    <button onClick={() => setEditing(false)} style={{ padding:"7px 14px", borderRadius:8,
-                      border:"1px solid #e2e8f0", background:"#fff", color:"#475569", fontSize:12, cursor:"pointer" }}>
-                      Cancelar
-                    </button>
-                  </>
+              <div style={{ display:"flex", gap:6 }}>
+                {/* Botão enviar encaminhamentos pro Kanban */}
+                {ata && ata.encaminhamentos && ata.encaminhamentos.length > 0 && (
+                  <button onClick={() => setReviewModal({ encaminhamentos: ata.encaminhamentos, meetingId: meeting.id, meetingProject: meeting.project })}
+                    style={{ padding:"6px 14px", borderRadius:8, border:"1px solid #a5f3fc",
+                      background:"#ecfeff", color:"#0891b2", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                    ✅ Enviar Encaminhamentos
+                  </button>
+                )}
+                {!editing ? (
+                  <button onClick={startEdit} style={{ padding:"6px 14px", borderRadius:8,
+                    border:"1px solid #bfdbfe", background:"#eff6ff", color:"#1e3a8a",
+                    fontSize:12, fontWeight:700, cursor:"pointer" }}>✏️ Editar</button>
                 ) : (
                   <>
-                    <button onClick={startEdit} style={{ padding:"7px 14px", borderRadius:8,
-                      border:"1px solid #e2e8f0", background:"#fff", color:"#475569", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-                      ✏️ Editar
+                    <button onClick={handleSave} disabled={saving} style={{ padding:"6px 14px", borderRadius:8,
+                      border:"none", background:"#10b981", color:"#fff", fontSize:12, fontWeight:700,
+                      cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>
+                      {saving ? <><Spinner size={12}/> Salvando...</> : "💾 Salvar"}
                     </button>
-                    <button onClick={handleExport} disabled={exporting} style={{ padding:"7px 14px", borderRadius:8,
-                      border:"none", background:exporting?"#94a3b8":"#1e3a8a", color:"#fff", fontSize:12, fontWeight:700,
-                      cursor:exporting?"not-allowed":"pointer" }}>
-                      {exporting ? "Gerando..." : "⬇ .docx"}
-                    </button>
-                    <button onClick={() => setConfirmDelAta(selectedId)} style={{ padding:"7px 14px", borderRadius:8,
-                      border:"1px solid #fca5a5", background:"#fff", color:"#ef4444", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-                      🗑 Apagar
-                    </button>
+                    <button onClick={() => setEditing(false)} style={{ padding:"6px 14px", borderRadius:8,
+                      border:"1px solid #e2e8f0", background:"#fff", color:"#475569", fontSize:12, cursor:"pointer" }}>Cancelar</button>
                   </>
                 )}
+                <button onClick={() => setConfirmDelAta(selectedId)}
+                  style={{ padding:"6px 12px", borderRadius:8, border:"1px solid #fca5a5",
+                    background:"#fff", color:"#ef4444", fontSize:12, cursor:"pointer" }}>🗑</button>
               </div>
             </div>
 
-            {exportMsg && <div style={{ marginBottom:12, fontSize:12, color:"#10b981", fontWeight:600,
-              background:"#f0fdf4", padding:"8px 12px", borderRadius:8 }}>{exportMsg}</div>}
-
-            <div style={{ fontSize:13, fontWeight:700, color:"#1e293b", marginBottom:14 }}>{meeting.title}</div>
-
-            {[
-              ["participantes","PARTICIPANTES",["#","Nome Participantes","Empresa"],[0.5,3,2]],
-              ["pautas","PAUTA DA REUNIÃO",["#","Pauta","Duração"],[0.5,4,1]],
-              ["decisoes","DECISÕES & CONCLUSÕES",["#","Assunto","Tomador da Decisão"],[0.5,3.5,1.5]],
-              ["encaminhamentos","ENCAMINHAMENTOS",["#","Descrição","Responsável","Prazo"],[0.5,3,1.5,1]],
-            ].map(([section, title, columns, widths]) => (
+            {displayAta && SECTIONS.map(({ key: section, title, columns, widths }) =>
               editing ? (
-                <div key={section} style={{ marginBottom:18 }}>
-                  <div style={{ background:"#1f3864", padding:"7px 12px", borderRadius:"6px 6px 0 0", textAlign:"center" }}>
+                <div key={section} style={{ marginBottom:18, border:"1px solid #bfdbfe", borderRadius:8, overflow:"hidden" }}>
+                  <div style={{ background:"#1f3864", padding:"7px 12px" }}>
                     <span style={{ color:"#fff", fontWeight:700, fontSize:12 }}>{title}</span>
                   </div>
-                  <div style={{ display:"flex", background:"#d9d9d9" }}>
-                    {columns.map((c,i) => <div key={i} style={{ flex:widths[i], padding:"5px 10px", fontWeight:700, fontSize:11, color:"#1f3864" }}>{c}</div>)}
-                  </div>
-                  {(displayAta[section]||[]).map((row,ri) => (
-                    <div key={ri} style={{ display:"flex", background:ri%2===1?"#e8f0fe":"#fff", borderBottom:"1px solid #e2e8f0", alignItems:"center" }}>
-                      {row.map((cell,ci) => (
-                        <div key={ci} style={{ flex:widths[ci], padding:"4px 6px" }}>
-                          {ci === 0
-                            ? <span style={{ fontSize:11, padding:"2px 6px" }}>{cell}</span>
-                            : <input value={cell} onChange={e => updateCell(section, ri, ci, e.target.value)}
-                                style={{ width:"100%", border:"1px solid #bfdbfe", borderRadius:4, padding:"3px 6px", fontSize:11, fontFamily:"inherit" }} />
-                          }
+                  {(displayAta[section]||[]).map((row, ri) => (
+                    <div key={ri} style={{ display:"flex", background:ri%2===1?"#e8f0fe":"#fff", borderBottom:"1px solid #e2e8f0" }}>
+                      {row.map((cell, ci) => (
+                        <div key={ci} style={{ flex:widths[ci], padding:"4px 6px", borderRight:ci<row.length-1?"1px solid #e2e8f0":"none" }}>
+                          <input value={cell} onChange={e => updateCell(section, ri, ci, e.target.value)}
+                            style={{ width:"100%", border:"none", background:"transparent", fontSize:11, padding:"2px 4px",
+                              outline:"none", color:"#334155", boxSizing:"border-box" }} />
                         </div>
                       ))}
                       <div style={{ padding:"0 6px", flexShrink:0 }}>
@@ -720,7 +932,7 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta }) {
               ) : (
                 <ATATable key={section} title={title} columns={columns} rows={displayAta[section]||[]} widths={widths} />
               )
-            ))}
+            )}
           </div>
         )}
       </div>
@@ -730,6 +942,17 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta }) {
           message="Apagar esta ata? A reunião voltará ao status de transcrição. Esta ação não pode ser desfeita."
           onConfirm={() => { deleteAta(confirmDelAta); setConfirmDelAta(null); setSelected(null); }}
           onCancel={() => setConfirmDelAta(null)}
+        />
+      )}
+
+      {reviewModal && (
+        <ActionReviewModal
+          encaminhamentos={reviewModal.encaminhamentos}
+          meetingId={reviewModal.meetingId}
+          meetingProject={reviewModal.meetingProject}
+          meetings={meetings}
+          addActions={addActions}
+          onClose={() => setReviewModal(null)}
         />
       )}
     </div>
@@ -743,17 +966,33 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
   const [editingId, setEditingId]   = useState(null);
   const [editForm, setEditForm]     = useState({});
   const [addingCol, setAddingCol]   = useState(null);
-  const [newForm, setNewForm]       = useState({ description:"", responsible:"", due_date:"", meeting_id:"" });
+  const [newForm, setNewForm]       = useState({ description:"", responsible:"", due_date:"", meeting_id:"", project:"" });
   const [confirmDel, setConfirmDel] = useState(null);
   const [dragging, setDragging]     = useState(null);
   const [now, setNow]               = useState(Date.now());
+  const [filterProject, setFP]      = useState("Todos");
+  const [newProject, setNewProject] = useState("");
+  const [showNewProj, setShowNewProj] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
 
-  const visible = actions.filter(a => !onlyMe || a.responsible === ME);
+  // Todos os projetos disponíveis (de meetings e de action_items)
+  const allProjects = [...new Set([
+    ...meetings.map(m => m.project).filter(Boolean),
+    ...actions.map(a => a.project).filter(Boolean),
+    ...Object.keys(DEFAULT_PROJECT_COLORS),
+  ])].sort();
+
+  // Filtro por pessoa + projeto
+  const visible = actions.filter(a => {
+    const byMe = !onlyMe || a.responsible === ME;
+    const byProject = filterProject === "Todos" || a.project === filterProject || 
+      (!a.project && meetings.find(m => m.id === a.meeting_id)?.project === filterProject);
+    return byMe && byProject;
+  });
 
   function colItems(colId) {
     const items = visible.filter(a => a.status === colId);
@@ -768,7 +1007,7 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
 
   function startEdit(a) {
     setEditingId(a.id);
-    setEditForm({ description: a.description, responsible: a.responsible, due_date: a.due_date });
+    setEditForm({ description: a.description, responsible: a.responsible, due_date: a.due_date, project: a.project || "" });
   }
 
   async function saveEdit(id) {
@@ -778,6 +1017,7 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
 
   async function handleAdd(colId) {
     if (!newForm.description.trim()) return;
+    const proj = showNewProj && newProject.trim() ? newProject.trim() : (newForm.project || "Sem projeto");
     const meetingId = newForm.meeting_id ? parseInt(newForm.meeting_id) : (meetings[0]?.id ?? null);
     await addAction({
       meeting_id: meetingId,
@@ -785,15 +1025,27 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
       responsible: newForm.responsible || ME,
       due_date: newForm.due_date || "A Definir",
       status: colId,
+      project: proj,
     });
-    setNewForm({ description:"", responsible:"", due_date:"", meeting_id:"" });
+    setNewForm({ description:"", responsible:"", due_date:"", meeting_id:"", project:"" });
+    setNewProject("");
+    setShowNewProj(false);
     setAddingCol(null);
   }
 
   return (
     <div>
-      <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:16, flexWrap:"wrap" }}>
+      {/* Filtros */}
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, flexWrap:"wrap" }}>
         <Toggle checked={onlyMe} onChange={() => setOnlyMe(!onlyMe)} label={`Apenas meus (${ME.split(" ")[0]})`} />
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <span style={{ fontSize:12, fontWeight:600, color:"#64748b" }}>Projeto:</span>
+          <select value={filterProject} onChange={e => setFP(e.target.value)}
+            style={{ padding:"5px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
+            <option value="Todos">Todos os projetos</option>
+            {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
         {hiddenDoneCount > 0 && (
           <button onClick={() => setShowDone(!showDone)} style={{
             padding:"5px 12px", borderRadius:99, border:"1px solid #e2e8f0",
@@ -804,6 +1056,7 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
         )}
       </div>
 
+      {/* Kanban */}
       <div style={{ display:"flex", gap:10, overflowX:"auto", paddingBottom:12, alignItems:"flex-start" }}>
         {KANBAN_COLS.map(col => {
           const items = colItems(col.id);
@@ -811,7 +1064,7 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
             <div key={col.id}
               onDragOver={e => e.preventDefault()}
               onDrop={() => { if (dragging !== null) { updateAction(dragging, { status: col.id }); setDragging(null); } }}
-              style={{ minWidth:220, flex:"0 0 220px", background:col.bg, borderRadius:12,
+              style={{ minWidth:230, flex:"0 0 230px", background:col.bg, borderRadius:12,
                 border:`1px solid ${col.color}25`, overflow:"hidden" }}>
               {/* Header */}
               <div style={{ padding:"10px 12px", borderBottom:`2px solid ${col.color}`,
@@ -832,13 +1085,29 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                 <div style={{ padding:"8px 10px", background:"#fff", borderBottom:`1px solid ${col.color}25` }}>
                   <input placeholder="Descrição..." value={newForm.description}
                     onChange={e => setNewForm(f=>({...f,description:e.target.value}))}
-                    style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4 }} />
+                    style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
                   <input placeholder="Responsável" value={newForm.responsible}
                     onChange={e => setNewForm(f=>({...f,responsible:e.target.value}))}
-                    style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4 }} />
+                    style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
                   <input placeholder="Prazo (dd/mm/aaaa)" value={newForm.due_date}
                     onChange={e => setNewForm(f=>({...f,due_date:e.target.value}))}
-                    style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4 }} />
+                    style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
+                  {/* Seletor de projeto */}
+                  <select value={showNewProj ? "__new__" : newForm.project}
+                    onChange={e => {
+                      if (e.target.value === "__new__") { setShowNewProj(true); }
+                      else { setShowNewProj(false); setNewForm(f=>({...f, project: e.target.value})); }
+                    }}
+                    style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:4, background:"#fff" }}>
+                    <option value="">Sem projeto</option>
+                    {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
+                    <option value="__new__">+ Criar novo projeto...</option>
+                  </select>
+                  {showNewProj && (
+                    <input placeholder="Nome do novo projeto" value={newProject}
+                      onChange={e => setNewProject(e.target.value)}
+                      style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #bfdbfe", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
+                  )}
                   <select value={newForm.meeting_id} onChange={e => setNewForm(f=>({...f,meeting_id:e.target.value}))}
                     style={{ width:"100%", padding:"5px 8px", borderRadius:6, border:"1px solid #e2e8f0", fontSize:11, marginBottom:6, background:"#fff" }}>
                     <option value="">Vincular reunião (opcional)</option>
@@ -847,7 +1116,7 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                   <div style={{ display:"flex", gap:5 }}>
                     <button onClick={() => handleAdd(col.id)} style={{ flex:1, padding:"5px", borderRadius:6, border:"none",
                       background:col.color, color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}>Adicionar</button>
-                    <button onClick={() => setAddingCol(null)} style={{ padding:"5px 8px", borderRadius:6,
+                    <button onClick={() => { setAddingCol(null); setShowNewProj(false); setNewProject(""); }} style={{ padding:"5px 8px", borderRadius:6,
                       border:"1px solid #e2e8f0", background:"#fff", fontSize:11, cursor:"pointer" }}>✕</button>
                   </div>
                 </div>
@@ -857,6 +1126,7 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
               <div style={{ padding:"8px", display:"flex", flexDirection:"column", gap:6, minHeight:80 }}>
                 {items.map(a => {
                   const m = meetings.find(mt => mt.id === a.meeting_id);
+                  const cardProject = a.project || m?.project;
                   const isMe = a.responsible === ME;
                   const isEditing = editingId === a.id;
                   return (
@@ -870,11 +1140,17 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                       {isEditing ? (
                         <div>
                           <input value={editForm.description} onChange={e=>setEditForm(f=>({...f,description:e.target.value}))}
-                            style={{ width:"100%", padding:"4px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, marginBottom:4 }} />
+                            style={{ width:"100%", padding:"4px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
                           <input value={editForm.responsible} onChange={e=>setEditForm(f=>({...f,responsible:e.target.value}))}
-                            style={{ width:"100%", padding:"4px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, marginBottom:4 }} />
+                            style={{ width:"100%", padding:"4px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
                           <input value={editForm.due_date} onChange={e=>setEditForm(f=>({...f,due_date:e.target.value}))}
-                            style={{ width:"100%", padding:"4px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, marginBottom:6 }} />
+                            style={{ width:"100%", padding:"4px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, marginBottom:4, boxSizing:"border-box" }} />
+                          <select value={editForm.project || ""}
+                            onChange={e => setEditForm(f=>({...f, project: e.target.value}))}
+                            style={{ width:"100%", padding:"4px 6px", borderRadius:5, border:"1px solid #bfdbfe", fontSize:11, marginBottom:6, background:"#fff" }}>
+                            <option value="">Sem projeto</option>
+                            {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
+                          </select>
                           <div style={{ display:"flex", gap:4 }}>
                             <button onClick={() => saveEdit(a.id)} style={{ flex:1, padding:"4px", borderRadius:5, border:"none",
                               background:"#10b981", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer" }}>Salvar</button>
@@ -886,22 +1162,13 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
                         <>
                           <div style={{ fontSize:12, fontWeight:600, color:"#1e293b", lineHeight:1.4, marginBottom:6 }}>{a.description}</div>
                           <div style={{ display:"flex", flexDirection:"column", gap:2, marginBottom:6 }}>
-                            {m && <span style={{ marginBottom:2 }}><ProjectBadge project={m.project} small /></span>}
+                            {cardProject && <span style={{ marginBottom:2 }}><ProjectBadge project={cardProject} small /></span>}
                             <span style={{ fontSize:10, color:isMe?"#1e3a8a":"#64748b", fontWeight:isMe?700:400 }}>
                               👤 {a.responsible}{isMe?" (eu)":""}
                             </span>
                             <span style={{ fontSize:10, color:"#94a3b8" }}>📅 {a.due_date}</span>
                           </div>
-                          <div style={{ display:"flex", gap:3, flexWrap:"wrap", marginBottom:4 }}>
-                            {KANBAN_COLS.filter(c=>c.id!==col.id).map(c => (
-                              <button key={c.id} onClick={() => updateAction(a.id, { status: c.id })}
-                                title={`Mover para ${c.label}`}
-                                style={{ fontSize:9, padding:"2px 6px", borderRadius:99, border:`1px solid ${c.color}`,
-                                  color:c.color, background:"#fff", cursor:"pointer", fontWeight:700 }}>
-                                → {c.label.split(" ")[0]}
-                              </button>
-                            ))}
-                          </div>
+                          {/* Botões de mover entre colunas removidos conforme solicitado */}
                           <div style={{ display:"flex", gap:4, justifyContent:"flex-end" }}>
                             <button onClick={() => startEdit(a)} style={{ fontSize:10, padding:"2px 7px", borderRadius:5,
                               border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", color:"#475569" }}>✏️</button>
@@ -938,14 +1205,21 @@ function CompletedTab({ actions, meetings }) {
   const [filterProject, setFP] = useState("Todos");
 
   const done = actions.filter(a => a.status === "done");
-  const projects = ["Todos", ...new Set(done.map(a => meetings.find(m => m.id===a.meeting_id)?.project ?? "Sem projeto"))];
+
+  // Pegar projeto do action_item diretamente (campo project) ou via meeting
+  function getProject(a) {
+    if (a.project) return a.project;
+    return meetings.find(m => m.id === a.meeting_id)?.project ?? "Sem projeto";
+  }
+
+  const projects = ["Todos", ...new Set(done.map(getProject))];
 
   const byProject = {};
   done.forEach(a => {
-    const m = meetings.find(mt => mt.id===a.meeting_id);
-    const p = m?.project ?? "Sem projeto";
+    const p = getProject(a);
     if (filterProject !== "Todos" && p !== filterProject) return;
     if (!byProject[p]) byProject[p] = [];
+    const m = meetings.find(mt => mt.id === a.meeting_id);
     byProject[p].push({ ...a, meetingTitle: m?.title ?? "—" });
   });
 
@@ -995,10 +1269,30 @@ function CompletedTab({ actions, meetings }) {
 
 // ─── ABA 5: DASHBOARD ────────────────────────────────────────────────────────
 function DashboardTab({ meetings, actions }) {
-  const [onlyMe, setOnlyMe] = useState(false);
+  const [onlyMe, setOnlyMe]           = useState(false);
+  const [filterProject, setFP]        = useState("Todos");
+  const [filterStatus, setFS]         = useState("Todos");
+  const [filterResponsible, setFR]    = useState("Todos");
 
-  const fa = onlyMe ? actions.filter(a => a.responsible === ME) : actions;
-  const fm = onlyMe ? meetings.filter(m => actions.some(a => a.meeting_id===m.id && a.responsible===ME)) : meetings;
+  // Todos os projetos (de meetings e de actions com campo project)
+  function getActionProject(a) {
+    if (a.project) return a.project;
+    return meetings.find(m => m.id === a.meeting_id)?.project ?? "Sem projeto";
+  }
+
+  const allProjects = [...new Set(actions.map(getActionProject).filter(Boolean))].sort();
+  const allResponsibles = [...new Set(actions.map(a => a.responsible).filter(Boolean))].sort();
+
+  // Aplicar filtros
+  let fa = actions;
+  if (onlyMe) fa = fa.filter(a => a.responsible === ME);
+  if (filterProject !== "Todos") fa = fa.filter(a => getActionProject(a) === filterProject);
+  if (filterStatus !== "Todos") fa = fa.filter(a => a.status === filterStatus);
+  if (filterResponsible !== "Todos") fa = fa.filter(a => a.responsible === filterResponsible);
+
+  // Meetings relevantes (que têm pelo menos um action no filtro)
+  const relevantMeetingIds = [...new Set(fa.map(a => a.meeting_id))];
+  const fm = meetings.filter(m => relevantMeetingIds.includes(m.id) || filterProject === "Todos");
 
   const total    = fa.length;
   const done     = fa.filter(a => a.status==="done").length;
@@ -1006,17 +1300,52 @@ function DashboardTab({ meetings, actions }) {
   const critical = fa.filter(a => a.status==="critical").length;
   const inProg   = fa.filter(a => a.status==="in_progress").length;
   const rate     = total > 0 ? Math.round((done/total)*100) : 0;
-  const projects = [...new Set(fm.map(m => m.project))];
+
+  // Projetos presentes nos actions filtrados
+  const projectsInFilter = [...new Set(fa.map(getActionProject))];
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-      <div style={{ display:"flex", justifyContent:"flex-end" }}>
-        <Toggle checked={onlyMe} onChange={() => setOnlyMe(!onlyMe)} label={`Apenas meus (${ME.split(" ")[0]})`} />
+      {/* Filtros */}
+      <div style={{ background:"#fff", borderRadius:12, border:"1px solid #f1f5f9", padding:"14px 18px" }}>
+        <div style={{ fontSize:12, fontWeight:700, color:"#475569", marginBottom:10, textTransform:"uppercase", letterSpacing:0.3 }}>Filtros</div>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+          <Toggle checked={onlyMe} onChange={() => { setOnlyMe(!onlyMe); setFR("Todos"); }} label={`Apenas meus (${ME.split(" ")[0]})`} />
+
+          <select value={filterProject} onChange={e => setFP(e.target.value)}
+            style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
+            <option value="Todos">Todos os projetos</option>
+            {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+
+          <select value={filterStatus} onChange={e => setFS(e.target.value)}
+            style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
+            <option value="Todos">Todos os status</option>
+            {KANBAN_COLS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+
+          {!onlyMe && (
+            <select value={filterResponsible} onChange={e => setFR(e.target.value)}
+              style={{ padding:"6px 10px", borderRadius:8, border:"1px solid #e2e8f0", fontSize:12, background:"#fff" }}>
+              <option value="Todos">Todos os responsáveis</option>
+              {allResponsibles.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          )}
+
+          {(filterProject !== "Todos" || filterStatus !== "Todos" || filterResponsible !== "Todos" || onlyMe) && (
+            <button onClick={() => { setOnlyMe(false); setFP("Todos"); setFS("Todos"); setFR("Todos"); }}
+              style={{ padding:"5px 12px", borderRadius:8, border:"1px solid #fca5a5", background:"#fff",
+                color:"#ef4444", fontSize:11, fontWeight:600, cursor:"pointer" }}>
+              ✕ Limpar filtros
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* KPIs */}
       <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
         {[
-          { label:"Reuniões",        value:fm.length, color:"#1e3a8a", icon:"📋" },
+          { label:"Reuniões",        value:meetings.length, color:"#1e3a8a", icon:"📋" },
           { label:"Total encam.",    value:total,     color:"#6366f1", icon:"📌" },
           { label:"Pendentes",       value:pending,   color:"#f59e0b", icon:"⏳" },
           { label:"Pontos críticos", value:critical,  color:"#ef4444", icon:"🔴" },
@@ -1031,53 +1360,100 @@ function DashboardTab({ meetings, actions }) {
         ))}
       </div>
 
+      {/* Por projeto */}
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #f1f5f9", padding:"18px 22px" }}>
         <div style={{ fontSize:13, fontWeight:700, color:"#1e293b", marginBottom:14 }}>Encaminhamentos por projeto</div>
-        {projects.length === 0 && <div style={{ fontSize:12, color:"#94a3b8" }}>Sem dados.</div>}
-        {projects.map(project => {
-          const ids = fm.filter(m => m.project===project).map(m => m.id);
-          const pi = fa.filter(a => ids.includes(a.meeting_id));
+        {projectsInFilter.length === 0 && <div style={{ fontSize:12, color:"#94a3b8" }}>Sem dados.</div>}
+        {projectsInFilter.map(project => {
+          const pi = fa.filter(a => getActionProject(a) === project);
           const pd = pi.filter(a => a.status==="done").length;
           const pct = pi.length > 0 ? Math.round((pd/pi.length)*100) : 0;
-          const color = PROJECT_COLORS[project]??"#64748b";
+          const color = getProjectColor(project);
+          const statuses = KANBAN_COLS.slice(0, -1); // sem done
           return (
-            <div key={project} style={{ marginBottom:12 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                <span style={{ fontSize:12, fontWeight:600, color:"#334155" }}>{project}</span>
+            <div key={project} style={{ marginBottom:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                <ProjectBadge project={project} />
                 <span style={{ fontSize:11, color:"#94a3b8" }}>{pd}/{pi.length} ({pct}%)</span>
               </div>
-              <div style={{ height:8, background:"#f1f5f9", borderRadius:99, overflow:"hidden" }}>
+              <div style={{ height:8, background:"#f1f5f9", borderRadius:99, overflow:"hidden", marginBottom:6 }}>
                 <div style={{ height:"100%", width:`${pct}%`, background:color, borderRadius:99, transition:"width 0.5s" }} />
+              </div>
+              {/* Mini distribuição de status */}
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {KANBAN_COLS.map(c => {
+                  const n = pi.filter(a => a.status === c.id).length;
+                  if (n === 0) return null;
+                  return (
+                    <span key={c.id} style={{ fontSize:10, padding:"1px 8px", borderRadius:99,
+                      background:`${c.color}15`, color:c.color, fontWeight:700, border:`1px solid ${c.color}30` }}>
+                      {c.label}: {n}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           );
         })}
       </div>
 
+      {/* Pendências por responsável */}
       <div style={{ background:"#fff", borderRadius:12, border:"1px solid #f1f5f9", padding:"18px 22px" }}>
         <div style={{ fontSize:13, fontWeight:700, color:"#1e293b", marginBottom:12 }}>Pendências por responsável</div>
         {[...new Set(fa.map(a => a.responsible))].map(resp => {
           const open = fa.filter(a => a.responsible===resp && a.status!=="done").length;
-          if (open === 0) return null;
+          const doneR = fa.filter(a => a.responsible===resp && a.status==="done").length;
+          if (open === 0 && doneR === 0) return null;
           const initials = resp.split(" ").slice(0,2).map(w=>w[0]).join("");
           const isMe = resp === ME;
           return (
-            <div key={resp} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+            <div key={resp} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, padding:"8px 12px",
+              borderRadius:8, background:isMe?"#f0f7ff":"#fafafa", border:`1px solid ${isMe?"#bfdbfe":"#f1f5f9"}` }}>
               <div style={{ width:32, height:32, borderRadius:"50%",
                 background:isMe?"#dbeafe":"#f1f5f9", display:"flex", alignItems:"center",
                 justifyContent:"center", fontSize:11, fontWeight:700,
-                color:isMe?"#1e3a8a":"#475569", border:isMe?"2px solid #1e3a8a":"none" }}>
+                color:isMe?"#1e3a8a":"#475569", border:isMe?"2px solid #1e3a8a":"none", flexShrink:0 }}>
                 {initials}
               </div>
               <div style={{ flex:1, fontSize:12, fontWeight:isMe?700:400, color:isMe?"#1e3a8a":"#334155" }}>
                 {resp}{isMe?" (eu)":""}
               </div>
-              <div style={{ padding:"3px 10px", borderRadius:99, background:"#fef3c7", color:"#d97706", fontSize:11, fontWeight:700 }}>
-                {open} pendente{open>1?"s":""}
+              <div style={{ display:"flex", gap:6 }}>
+                {open > 0 && (
+                  <span style={{ padding:"3px 10px", borderRadius:99, background:"#fef3c7", color:"#d97706", fontSize:11, fontWeight:700 }}>
+                    {open} aberto{open>1?"s":""}
+                  </span>
+                )}
+                {doneR > 0 && (
+                  <span style={{ padding:"3px 10px", borderRadius:99, background:"#dcfce7", color:"#16a34a", fontSize:11, fontWeight:700 }}>
+                    {doneR} concluído{doneR>1?"s":""}
+                  </span>
+                )}
               </div>
             </div>
           );
         })}
+        {fa.length === 0 && <div style={{ fontSize:12, color:"#94a3b8" }}>Nenhum dado com os filtros selecionados.</div>}
+      </div>
+
+      {/* Timeline de conclusões (últimas 4 semanas) */}
+      <div style={{ background:"#fff", borderRadius:12, border:"1px solid #f1f5f9", padding:"18px 22px" }}>
+        <div style={{ fontSize:13, fontWeight:700, color:"#1e293b", marginBottom:12 }}>Status geral dos encaminhamentos</div>
+        <div style={{ display:"flex", gap:8 }}>
+          {KANBAN_COLS.map(c => {
+            const n = fa.filter(a => a.status === c.id).length;
+            const pct = total > 0 ? Math.round((n/total)*100) : 0;
+            return (
+              <div key={c.id} style={{ flex:1, textAlign:"center" }}>
+                <div style={{ height:60, background:"#f1f5f9", borderRadius:8, overflow:"hidden", display:"flex", alignItems:"flex-end" }}>
+                  <div style={{ width:"100%", height:`${pct}%`, background:c.color, transition:"height 0.5s", minHeight: n>0?4:0 }} />
+                </div>
+                <div style={{ fontSize:10, color:c.color, fontWeight:700, marginTop:4 }}>{n}</div>
+                <div style={{ fontSize:9, color:"#94a3b8", lineHeight:1.2, marginTop:1 }}>{c.label.split(" ")[0]}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -1089,7 +1465,7 @@ export default function PWRMeetingApp() {
   const {
     meetings, actions, atas, loading, toast,
     loadAll, addMeeting, deleteMeeting, updateMeeting,
-    addAction, updateAction, deleteAction, saveAta, deleteAta,
+    addAction, addActions, updateAction, deleteAction, saveAta, deleteAta,
   } = useAppData();
 
   const tabs = [
@@ -1139,8 +1515,8 @@ export default function PWRMeetingApp() {
           </div>
         ) : (
           <>
-            {activeTab==="transcricoes"    && <TranscriptionsTab meetings={meetings} addMeeting={addMeeting} deleteMeeting={deleteMeeting} updateMeeting={updateMeeting} saveAta={saveAta} atas={atas} loadAll={loadAll} />}
-            {activeTab==="atas"            && <MinutesTab meetings={meetings} atas={atas} saveAta={saveAta} deleteAta={deleteAta} />}
+            {activeTab==="transcricoes"    && <TranscriptionsTab meetings={meetings} addMeeting={addMeeting} deleteMeeting={deleteMeeting} updateMeeting={updateMeeting} saveAta={saveAta} atas={atas} loadAll={loadAll} addActions={addActions} />}
+            {activeTab==="atas"            && <MinutesTab meetings={meetings} atas={atas} saveAta={saveAta} deleteAta={deleteAta} addActions={addActions} />}
             {activeTab==="encaminhamentos" && <ActionItemsTab actions={actions} meetings={meetings} addAction={addAction} updateAction={updateAction} deleteAction={deleteAction} />}
             {activeTab==="concluidos"      && <CompletedTab actions={actions} meetings={meetings} />}
             {activeTab==="dashboard"       && <DashboardTab meetings={meetings} actions={actions} />}
@@ -1151,4 +1527,4 @@ export default function PWRMeetingApp() {
       {toast && <Toast message={toast.message} type={toast.type} />}
     </div>
   );
-}
+}PLACEHOLDER
