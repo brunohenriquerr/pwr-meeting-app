@@ -426,21 +426,22 @@ function ActionReviewModal({ encaminhamentos, meetingId, meetingProject, meeting
 }
 
 // ─── COMPONENTE CHECKLIST (estilo Trello) ─────────────────────────────────────
-// Persiste no Supabase (tabela action_item_checklists)
+// ✅ CORRIGIDO: items serializado como JSON string no insert/update; parsed na leitura
 function Checklist({ actionId, checklists, onUpdate }) {
   const [newItemText, setNewItemText]   = useState({});
   const [addingItem, setAddingItem]     = useState(null);
   const [editTitle, setEditTitle]       = useState(null);
   const [editTitleVal, setEditTitleVal] = useState("");
-  const [saving, setSaving]             = useState(false);
 
-  // Persiste checklist atualizado no Supabase
+  // ✅ CORRIGIDO: JSON.stringify nos items para garantir compatibilidade com JSONB
   async function persist(clId, updatedCl) {
-    setSaving(true);
-    await sb.from("action_item_checklists")
-      .update({ title: updatedCl.title, items: updatedCl.items })
+    const { error } = await sb.from("action_item_checklists")
+      .update({
+        title: updatedCl.title,
+        items: JSON.stringify(updatedCl.items),
+      })
       .eq("id", clId);
-    setSaving(false);
+    if (error) console.error("Erro ao persistir checklist:", error);
   }
 
   async function toggleItem(clId, itemId) {
@@ -962,9 +963,8 @@ function MinutesTab({ meetings, atas, saveAta, deleteAta, addActions }) {
 }
 
 // ─── ABA 3: ENCAMINHAMENTOS (KANBAN) ─────────────────────────────────────────
-// Checklists persistem no Supabase. Filtro por responsável substituiu o toggle onlyMe.
 function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteAction }) {
-  const [filterResponsible, setFilterResp] = useState("Todos"); // ← substituiu onlyMe
+  const [filterResponsible, setFilterResp] = useState("Todos");
   const [showDone, setShowDone]     = useState(false);
   const [editingId, setEditingId]   = useState(null);
   const [editForm, setEditForm]     = useState({});
@@ -978,30 +978,35 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
   const [showNewProj, setShowNewProj] = useState(false);
 
   // Checklists: { [actionId]: [{ id, title, items: [] }] }
-  const [checklists, setChecklists]       = useState({});
+  const [checklists, setChecklists]           = useState({});
   const [addingChecklist, setAddingChecklist] = useState(null);
-  const [newClTitle, setNewClTitle]       = useState("");
-  const [loadingChecklists, setLoadingChecklists] = useState(false);
+  const [newClTitle, setNewClTitle]           = useState("");
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
 
-  // Carrega todos os checklists do Supabase ao montar
+  // ✅ CORRIGIDO: parse defensivo de items (pode vir como string ou array do Supabase)
   useEffect(() => {
     async function loadChecklists() {
-      setLoadingChecklists(true);
       const { data, error } = await sb.from("action_item_checklists").select("*");
       if (!error && data) {
         const map = {};
         data.forEach(cl => {
           if (!map[cl.action_item_id]) map[cl.action_item_id] = [];
-          map[cl.action_item_id].push({ id: cl.id, title: cl.title, items: cl.items || [] });
+          let parsedItems = [];
+          try {
+            parsedItems = typeof cl.items === "string"
+              ? JSON.parse(cl.items)
+              : Array.isArray(cl.items) ? cl.items : [];
+          } catch (e) {
+            parsedItems = [];
+          }
+          map[cl.action_item_id].push({ id: cl.id, title: cl.title, items: parsedItems });
         });
         setChecklists(map);
       }
-      setLoadingChecklists(false);
     }
     loadChecklists();
   }, []);
@@ -1012,7 +1017,6 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
     ...Object.keys(DEFAULT_PROJECT_COLORS),
   ])].sort();
 
-  // Lista de responsáveis únicos para o filtro
   const allResponsibles = ["Todos", ...new Set(actions.map(a => a.responsible).filter(Boolean))].sort((a, b) => {
     if (a === "Todos") return -1;
     if (b === "Todos") return 1;
@@ -1057,17 +1061,21 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
     setNewProject(""); setShowNewProj(false); setAddingCol(null);
   }
 
-  // Cria checklist no Supabase e atualiza estado local
+  // ✅ CORRIGIDO: JSON.stringify no items:[] para garantir insert correto no JSONB
   async function addChecklist(actionId) {
     const title = newClTitle.trim() || "Checklist";
     const { data, error } = await sb.from("action_item_checklists")
-      .insert({ action_item_id: actionId, title, items: [] })
+      .insert({ action_item_id: actionId, title, items: JSON.stringify([]) })
       .select()
       .single();
-    if (!error && data) {
+    if (error) {
+      console.error("Erro ao criar checklist:", error);
+      return;
+    }
+    if (data) {
       setChecklists(prev => ({
         ...prev,
-        [actionId]: [...(prev[actionId] || []), { id: data.id, title: data.title, items: data.items || [] }],
+        [actionId]: [...(prev[actionId] || []), { id: data.id, title: data.title, items: [] }],
       }));
     }
     setAddingChecklist(null);
@@ -1076,7 +1084,7 @@ function ActionItemsTab({ actions, meetings, addAction, updateAction, deleteActi
 
   return (
     <div>
-      {/* ── Filtros: responsável + projeto ── */}
+      {/* ── Filtros ── */}
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, flexWrap:"wrap" }}>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
           <span style={{ fontSize:12, fontWeight:600, color:"#64748b" }}>Responsável:</span>
@@ -1317,7 +1325,6 @@ function CompletedTab({ actions, meetings }) {
 }
 
 // ─── ABA 5: DASHBOARD ────────────────────────────────────────────────────────
-// Toggle "apenas meus" removido. Filtros de projeto, status e responsável mantidos.
 function DashboardTab({ meetings, actions }) {
   const [filterProject, setFP]     = useState("Todos");
   const [filterStatus, setFS]      = useState("Todos");
