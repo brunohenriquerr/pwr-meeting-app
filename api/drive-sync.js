@@ -11,7 +11,7 @@
 // Endpoint: GET /api/drive-sync
 // Retorna: { imported: N, files: [...] }
 
-const DRIVE_ROOT_FOLDER_ID = "1W4TVGyZSvzeKFo12JMilR4bi5WM3-CUa";
+const DRIVE_ROOT_FOLDER_ID = "1azotVcg4FwpVuu-DRLEVd1hKHN4zG8RG";
 
 const PROJECT_MAP = {
   "san paolo":             "San Paolo",
